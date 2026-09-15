@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Registro de Cilindros · Solicitud de Recolección</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --orange:#F97316;
+    --orange-dark:#EA580C;
+    --orange-soft:#FFEDD5;
+    --navy:#1E293B;
+    --grey:#7A7C7B;
+    --border:#CBD5E1;
+    --bg:#F1F5F9;
+    --surface:#FFFFFF;
+    --surface-2:#F8FAFC;
+    --text:#1E293B;
+    --text-muted:#64748B;
+    --green:#15803D;
+    --green-soft:#DCFCE7;
+    --red:#DC2626;
+    --red-soft:#FEE2E2;
+    --radius:12px;
+    --radius-sm:8px;
+    --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F1620;
+      --surface:#1A2332;
+      --surface-2:#212C3D;
+      --text:#E7ECF3;
+      --text-muted:#93A1B5;
+      --border:#33415A;
+      --orange-soft:#3A2415;
+      --green-soft:#123122;
+      --red-soft:#3A1616;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F1620;
+    --surface:#1A2332;
+    --surface-2:#212C3D;
+    --text:#E7ECF3;
+    --text-muted:#93A1B5;
+    --border:#33415A;
+    --orange-soft:#3A2415;
+    --green-soft:#123122;
+    --red-soft:#3A1616;
+    color-scheme: dark;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font);
+    font-size:15px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:64px;
+  }
+  a{color:inherit;}
+
+  /* ---------- layout shell ---------- */
+  .wrap{max-width:720px;margin:0 auto;padding:0 14px;}
+
+  header.topbar{
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+    position:sticky; top:0; z-index:40;
+  }
+  .topbar-accent{height:4px;background:var(--orange);}
+  .topbar-inner{
+    max-width:720px;margin:0 auto;padding:14px 14px 12px;
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+  }
+  .brand-tag{
+    font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--orange);
+    margin:0 0 2px;
+  }
+  .brand-title{
+    font-size:19px; font-weight:800; color:var(--text); margin:0; letter-spacing:-0.01em;
+  }
+  .brand-sub{
+    font-size:12.5px; color:var(--text-muted); margin-top:2px;
+  }
+  .sgs-mark{
+    font-weight:800; font-size:22px; color:var(--grey); letter-spacing:.01em;
+    border-right:2px solid var(--orange); padding-right:9px; line-height:1;
+    white-space:nowrap;
+  }
+
+  main{max-width:720px;margin:0 auto;padding:16px 14px 0;}
+
+  section.card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:14px;
+  }
+  section.card h2{
+    font-size:15px; font-weight:700; margin:0 0 12px;
+    color:var(--text);
+    display:flex; align-items:center; gap:8px;
+  }
+  section.card h2 .dot{
+    width:7px;height:7px;border-radius:50%;background:var(--orange);flex:none;
+  }
+  .card-hint{font-size:12.5px;color:var(--text-muted);margin:-6px 0 12px;}
+
+  details.card{padding:0; overflow:hidden;}
+  details.card > summary{
+    list-style:none; cursor:pointer; padding:14px 16px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-weight:700; font-size:14.5px;
+  }
+  details.card > summary::-webkit-details-marker{display:none;}
+  details.card > summary .chev{transition:transform .15s ease; color:var(--text-muted); flex:none;}
+  details.card[open] > summary .chev{transform:rotate(90deg);}
+  details.card > summary .dot{width:7px;height:7px;border-radius:50%;background:var(--orange);flex:none;}
+  details.card > summary .label{display:flex;align-items:center;gap:8px;}
+  details.card .details-body{padding:0 16px 16px;}
+
+  /* ---------- form controls ---------- */
+  label.field{display:block; margin-bottom:12px;}
+  label.field .lbl{
+    display:block; font-size:12.5px; font-weight:600; color:var(--text-muted);
+    margin-bottom:5px;
+  }
+  input[type=text], input[type=number], input[type=date], input[type=time],
+  input[type=email], input[type=tel], select, textarea{
+    width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm);
+    background:var(--surface); color:var(--text); font-family:var(--font); font-size:15px;
+    appearance:none; -webkit-appearance:none;
+  }
+  input:focus, select:focus, textarea:focus{
+    outline:none; border-color:var(--orange); box-shadow:0 0 0 3px var(--orange-soft);
+  }
+  textarea{resize:vertical; min-height:56px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
+  @media (max-width:480px){ .row3{grid-template-columns:1fr 1fr;} }
+
+  .chipset{display:flex; flex-wrap:wrap; gap:7px;}
+  .chip{
+    border:1.5px solid var(--border); background:var(--surface); color:var(--text);
+    padding:7px 12px; border-radius:999px; font-size:13.5px; font-weight:600;
+    cursor:pointer; white-space:nowrap;
+  }
+  .chip.active{
+    background:var(--navy); border-color:var(--navy); color:#fff;
+  }
+  .chip.small{padding:5px 10px; font-size:12.5px;}
+
+  /* buttons */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    border:none; border-radius:var(--radius-sm); padding:11px 16px;
+    font-family:var(--font); font-weight:700; font-size:14.5px; cursor:pointer;
+    text-decoration:none;
+  }
+  .btn-primary{background:var(--orange); color:#fff;}
+  .btn-primary:hover{background:var(--orange-dark);}
+  .btn-primary:disabled{background:#F3B583; cursor:not-allowed;}
+  .btn-outline{background:transparent; color:var(--navy); border:1.5px solid var(--border);}
+  .btn-outline:hover{border-color:var(--navy);}
+  .btn-ghost{background:transparent; color:var(--text-muted); padding:8px 10px;}
+  .btn-danger{background:transparent; color:var(--red); padding:8px 10px;}
+  .btn-block{width:100%;}
+  .btn-sm{padding:7px 11px; font-size:13px;}
+  .btn-row{display:flex; gap:8px; flex-wrap:wrap;}
+
+  /* stepper for cylinder-age quantities */
+  .age-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px;}
+  @media (max-width:420px){ .age-grid{grid-template-columns:repeat(2,1fr);} }
+  .age-box{
+    border:1.5px solid var(--border); border-radius:var(--radius-sm);
+    padding:9px 8px; text-align:center; background:var(--surface-2);
+  }
+  .age-box.primary{border-color:var(--orange); background:var(--orange-soft);}
+  .age-box .age-lbl{font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;}
+  .age-box.primary .age-lbl{color:var(--orange-dark);}
+  .stepper{display:flex; align-items:center; justify-content:center; gap:6px;}
+  .stepper button{
+    width:26px;height:26px;border-radius:7px;border:1.5px solid var(--border);
+    background:var(--surface); font-size:16px; font-weight:700; line-height:1;
+    cursor:pointer; color:var(--text); flex:none;
+  }
+  .stepper .val{min-width:20px; font-weight:800; font-size:15px;}
+
+  .total-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--navy); color:#fff; padding:6px 12px; border-radius:999px;
+    font-size:12.5px; font-weight:700;
+  }
+
+  /* consolidated list cards */
+  .muestra-card{
+    border:1.5px solid var(--border); border-radius:var(--radius-sm);
+    padding:12px; margin-bottom:9px; background:var(--surface-2);
+  }
+  .muestra-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .muestra-num{
+    font-weight:800; font-size:15px; color:var(--navy);
+    background:var(--orange-soft); border:1px solid var(--orange); color:var(--orange-dark);
+    padding:2px 9px; border-radius:7px; display:inline-block;
+  }
+  .muestra-meta{font-size:12.5px; color:var(--text-muted); margin-top:5px;}
+  .muestra-tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .tag{
+    background:var(--bg); border:1px solid var(--border); border-radius:6px;
+    padding:3px 8px; font-size:11.5px; font-weight:600; color:var(--text);
+  }
+  .tag.qty{background:var(--green-soft); border-color:var(--green); color:var(--green);}
+  .muestra-actions{display:flex; gap:4px; flex:none;}
+  .icon-btn{
+    border:none; background:transparent; cursor:pointer; font-size:16px;
+    padding:4px 6px; border-radius:6px; color:var(--text-muted);
+  }
+  .icon-btn:hover{background:var(--bg);}
+  .icon-btn.danger:hover{color:var(--red); background:var(--red-soft);}
+
+  .empty-state{
+    text-align:center; padding:26px 10px; color:var(--text-muted); font-size:13.5px;
+  }
+  .empty-state .big{font-size:30px; display:block; margin-bottom:6px;}
+
+  .summary-bar{
+    display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;
+  }
+  .summary-stat{
+    flex:1; min-width:90px; background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:10px 12px; text-align:center;
+  }
+  .summary-stat .n{font-size:20px; font-weight:800; color:var(--navy);}
+  .summary-stat .l{font-size:11px; color:var(--text-muted); font-weight:600; margin-top:1px;}
+
+  .badge{
+    font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
+    background:var(--green-soft); color:var(--green);
+  }
+  .badge.warn{background:var(--orange-soft); color:var(--orange-dark);}
+
+  .toast-wrap{
+    position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
+    z-index:100; display:flex; flex-direction:column; gap:8px; align-items:center;
+    width:calc(100% - 28px); max-width:460px;
+  }
+  .toast{
+    background:var(--navy); color:#fff; padding:11px 16px; border-radius:10px;
+    font-size:13.5px; font-weight:600; box-shadow:0 6px 20px rgba(0,0,0,.25);
+    animation:toastin .18s ease-out;
+  }
+  @keyframes toastin{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+
+  .divider{height:1px; background:var(--border); margin:14px 0;}
+
+  .history-item{
+    border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px;
+    margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;
+  }
+  .history-item .hi-main{font-size:13.5px; font-weight:700;}
+  .history-item .hi-sub{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
+
+  .import-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 0; border-bottom:1px solid var(--border);
+  }
+  .import-row:last-child{border-bottom:none;}
+  .import-row .ir-text{font-size:13px;}
+  .import-row .ir-count{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
+  input[type=file]{display:none;}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-accent"></div>
+  <div class="topbar-inner">
+    <div>
+      <p class="brand-tag">WHEN YOU NEED TO BE SURE</p>
+      <h1 class="brand-title">Registro de Cilindros</h1>
+      <p class="brand-sub">Solicitud de recolección · obra a obra, mixer a mixer</p>
+    </div>
+    <div class="sgs-mark">SGS</div>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* =========================================================
+   CATÁLOGOS BASE (extraídos de la plantilla y del histórico SGS)
+   ========================================================= */
+const CONCRETERAS_SEED = ["ADCO", "AGREGADOS Y CONCRETOS DEL OCCIDENTE", "AGREGOM", "AHINCO", "ALCONCRETOS", "ALIA", "ALION", "AMCON COLOMBIA", "APLICACIONES Y CONCRETO", "ARGOS", "ASFALTART", "ASFALTOS Y CONSTRUCCIONES BEM", "ASIRCON", "AYGEU", "BETON", "BODEGA DITAIRES", "C&G BOMBAS Y CONCRETOS S.A.S", "CAIC CAMARA DE COMERCIO", "CAMIÓN MIXER", "CARMIX ARGOS", "CASTILLA", "CASTILLA DE LA MANCHA", "CASTRO TCHERASSI", "CEMENTO BAYANO", "CEMENTOS ATLAS", "CEMENTOS PROGRESO", "CEMENTOS PROGRESO CONCRETO", "CEMENTOS TEQUENDAMA", "CEMEX", "CEMEX CENTRO SALUD ESTADIO", "CEMEX COQ", "CENTRAL HORMIGONERA", "CENTRAL HORMIGONERA S.A.", "CG CONCRETOS", "CIA PRODUCTORA DE CONCRETOS", "CIPRECOM", "CLINKER PREMEZCLADOS S.A.S.", "CM CONCRETOS", "COAGREGADOS S.A.S", "COB (CONSORCIÓN OBRAS Y BUSTILLO)", "CODIMAC", "COLCONCRETO", "CONALVIAL S.A.S", "CONASFALTO", "CONCAY", "CONCIVILES Y OBRA", "CONCONCRETO", "CONCRE EXPRESS", "CONCRE TOLIMA", "CONCREECO", "CONCREHUILA", "CONCRELITE", "CONCREMACK", "CONCREMAG", "CONCREMECOL S.A.S", "CONCREMEX S.A.S", "CONCREMOR", "CONCREMOVIL", "CONCRENORTE", "CONCRENORTE CARTAGENA", "CONCRESA", "CONCRESER S.A.S", "CONCRESERVICE", "CONCRESINU", "CONCRET MARK", "CONCRETADORA CIMBRADOS", "CONCRETADORA NORBERTO", "CONCRETADORA OCHOA", "CONCRETADORA OCTAVIO", "CONCRETADORA PISOS", "CONCRETADORA VOCANOME", "CONCRETAR", "CONCRETART", "CONCRETE HOUSE S.A.S", "CONCRETEC/GRAMA", "CONCRETEG", "CONCRETERA A Y C", "CONCRETERA CENTRAL DE CONCRETOS", "CONCRETERA CPK", "CONCRETERA ORGON S.A.S", "CONCRETEX", "CONCRETO", "CONCRETO MR 45 EXPLOMINERALES", "CONCRETO UNICO", "CONCRETO URBANO", "CONCRETO URBANO SAS", "CONCRETOS  UTRACEM", "CONCRETOS .COM S.A.S", "CONCRETOS ANDINOS", "CONCRETOS BARRANQUILLA", "CONCRETOS CARIBE", "CONCRETOS DE CALIDAD", "CONCRETOS DE IBAGUE", "CONCRETOS DE LA COSTA", "CONCRETOS DE VERAGUAS", "CONCRETOS DEL CARIBE", "CONCRETOS DEL MEDITERRANEO", "CONCRETOS DEL NORTE S.A.S", "CONCRETOS DEL ORIENTE", "CONCRETOS DEL SOL", "CONCRETOS EJE", "CONCRETOS EL CAIRO", "CONCRETOS EL RUBI", "CONCRETOS EL ZULIA", "CONCRETOS FLORESTA", "CONCRETOS INDUSTRIALES DE SUCRE", "CONCRETOS MIXER SAS", "CONCRETOS ORGON S.A.S", "CONCRETOS PASSAI", "CONCRETOS PASSAI SAS", "CONCRETOS PREMIUM", "CONCRETOS SAN PIO", "CONCRETOS SERSAR", "CONCRETOS UNO A", "CONCRETOS Y AGREGADOS", "CONCRETOS Y AGREGADOS DEL CARIBE S.A.S", "CONCRETOS Y CONCRETOS", "CONCRETOS Y CONSTRUCCIONES COLOMBIA", "CONCRETOS Y MORTEROS", "CONCRETOS Y PREFABRICADOS DEL CARIBE S.A.S", "CONCRETOS Y TRITURADOS EL ZULIA", "CONCREYM", "CONECO", "CONEXIÓN VIAL (FASE II)", "CONKRETE", "CONSORCIO DOBLE CALZADA", "CONSORCIO GRUPO CONSTRUCTORA", "CONSORCIO PORCE III", "CONSTRUCCIONES  J.R", "CONSTRUCCIONES EL CAIRO S.A.S", "CONSTRUCCIONES SANTA CRUZ", "CONSTRUNET", "CONTEX", "CONVEL S.A", "CONVEL-SAINC", "COPREN", "COVAL CONCRETOS", "CR3 CONSTRUCTORA S A S", "CUBIKO", "CUSEZAR", "D. L. R. FABRICADO EN OBRA", "D.E INGENIERIA", "D.E. INGENIERA Y CONSTRUCCIONES", "DEMO", "DG CONCRETOS", "DOMAT", "DRAGADOS", "DRAMIX", "DRY CONTRUCCIONES", "DSP CONCRETOS", "DUME", "E.D. INGENIERÍA Y CONSTRUCCIONES", "ECOCONCRETOS", "EL DORADO", "ENCONCRELISTO - TOXEMEN", "EQUIPOS Y OBRAS CIVILES", "EXPOMINERALES", "F.T. INGENIERIA LTDA", "FENIX CONSTRUCCIONES", "FORMETACOL S.A.S", "GAMTEC S.A.S", "GISAICO", "GRUPO VISBAL", "HBS CONCRETOS SAS", "HOLCIM COLOMBIA S.A.", "HORMICÓN", "HORMIGON ANDINO", "HORMIGON COLOMBIA", "HORMIGÓN EXPRESS", "HORMIGÓN URBANO S.A.S", "HORMIGONES SANTANDER", "HORMIGOTI", "HORMING", "ICEIN", "INACAR", "INGEKAR LPR", "INGETIERRAS", "INVERSIONES TAYRONA", "INVERSORA FURATENA S.A.S", "ISECEN", "ITALCONCRETOS", "J M K", "JOSE", "JOSEF CONCRETE", "JOSEF CONCRETE’S", "JULIANO G. CARLIER", "JUNTA DE ACCION COMUNAL BETANIA GUAYABAL", "K.M.A", "KONEKO", "LA HACIENDA", "LA PUNTA  (MARIO HUERTAS)", "LABORATORIO FARFAN", "LADRILLERA MELÉNDEZ", "LAGUNA MORANTES", "M.O MILENIUM", "MADE", "MADEBELLO", "MANUFACTURAS DE CEMENTO LTDA", "MAQUICONCRETOS", "MASTER PLAC", "MATERIA GRIS CONCRETOS & CONSTRUCCIONES S.A.S.", "MEGA CONCRETO", "METAL CIVIL", "METROCONCRETO", "METROCONCRETOS S.A", "MEZCLA EN LABORATORIO", "MEZCLADO EN OBRA- IVAN PRIETO", "MEZCLAS INDUSTRIALES", "MHC (MARIO HUERTAS COTES)", "MINE", "MINERALES DEL LLANO", "MIX CONCRETE", "MIX CONCRETOS DE COLOMBIA", "MIXER MOVIL", "MO (MEZCLA EN OBRA)", "MO.LCU", "MOBILE MIXERS", "MOMETRO CABLE LINEA ALEJANDRO ECHAVARRIA (LINEA H )", "MORCON", "MORTEROS DEL CARIBE", "MORTEROS Y CONCRETOS JMK S.A.S.", "MORTEROS Y CONCRETOS SANTA CRUZ", "MO-UIV CONCRETOS", "MOVI DAMAIS", "MYA GROUP", "N.A", "N.A.", "NORMIX S.A.S.", "NUEVO BLOQUE AULAS COLEGIO SANTO DOMINGO", "O SAMANES CAMPESTRE", "OBRA", "OBRA LOCAL SAN MICHEL", "OCAIMA", "ORGON", "P.Y.P", "PAVIMENTAR", "PAVIMENTAR S.A.", "PETREOS DE OCCIDENTE", "PETROINGENIERIA", "PISOS INDUSTRIALES", "PLA", "PLANTA ALTRON", "PLANTA ARIZA", "PLANTA CABI-CORVEZ", "PLANTA CARLOS LLERAS", "PLANTA CHIQUINQUIRA", "PLANTA DE CONCRETO DG", "PLANTA DE CONCRETO EN OBRA", "PLANTA DE CONCRETO MADE", "PLANTA DE CONCRETO METRO CUBICO", "PLANTA DE CONCRETOS CFRO", "PLANTA DE CONCRETOS CIU", "PLANTA DE CONCRETOS VALCON", "PLANTA EL TABLON", "PLANTA FARFAN", "PLANTA FIGALI", "PLANTA FURATENA", "PLANTA IMHOTEP", "PLANTA KONEKO-CORVEZ", "PLANTA MORTEROS CHICAMOCHA", "PLANTA ROCA", "POLIMIX", "PP NORTE COMUNA 50 VEREDA LA VOLCANA COLIMOCHA", "PP NORTE EL PLAYON", "PPK CARTAGENA", "PRE & SUM", "PREFABRICADOS CONCRETODO", "PREFABRICAR Y CONSTRUIR S.A.S", "PREMEXPRESS", "PREMEXPRESS MIRAFLORES", "PREMEXPRESS VACAMONTE", "PREMEZCLADOS DEL ATLÁNTICO", "PREVESA", "PROTYESCON", "PROYECTAR CONSTRUCCION S.A.S", "PULEMIX", "RCD Y AGREGADOS NACIONALES", "REFRIGERACION FASE 2", "RICARDO URIBE", "ROCALES Y CONCRETOS", "ROCAS INGENIEROS", "RUTA CARIBE", "S.L.M CONCRETERA", "SAN MARCOS", "SAN PIO", "SANTA MARIA DE ROBLEDO", "SANTA MONICA REAL", "SEECON S.A.S", "SERVICRETO", "SIKA", "SKEMA", "SLM CONSTRUCCION S.A", "SLM CONSTRUCTORA S.A", "SOLETANCHE BACHY CIMAS", "SOLUCIONES URBANISTICAS", "SUGADA", "SUPER CONCRETOS CONSTRUCCIONES", "TECNOMORTEROS", "TERRIGENOS", "TESIS", "TEXSA", "THEKCA INGENIERIA", "TITAN DEL CARIBE", "TNCC", "TORRE TISCALI", "TOXEMENT", "TRANSCONCRETO LTDA", "TREMIX", "TRITURADORA CONCRETOS LA PIEDRA", "ULTRACEM", "UNIGRAVAS S.A", "UPB BLOQUE 11", "VALCON", "VALORCON", "VELPATI", "VITAA", "VIVES"];
+
+const CONCRETERAS_FAVORITAS = ["CEMEX","OBRA","MO (MEZCLA EN OBRA)"];
+
+const DIMENSIONES_POR_TIPO = {
+  "Concreto": ["4\"x8\"","6\"x12\""],
+  "Mortero": ["2\"x4\"","3\"x6\"","4\"x8\"","Cubos"],
+  "Grouting": ["3\"x6\"","4\"x8\"","6\"x12\""],
+  "Viguetas": ["Viguetas"]
+};
+const TIPOS_MATERIAL = ["Concreto","Mortero","Grouting","Viguetas"];
+
+const MEZCLAS_SEED = {
+  "Concreto de linea 4000 1 pulg 28 dias AS15cm (6\")": {resistencia:28, tipoMaterial:"Concreto", dimension:"4\"x8\""},
+  "Concreto de linea 4000 1 pulg 28 dias AS15cm (8\")": {resistencia:28, tipoMaterial:"Concreto", dimension:"4\"x8\""},
+  "Concreto Tremie 4000PSI 1 pulg 28 dias AS15cm (8\")": {resistencia:28, tipoMaterial:"Concreto", dimension:"4\"x8\""},
+  "Alta Resistencia 7000 PSI A1/2 \" 28 dias (8\")": {resistencia:49, tipoMaterial:"Concreto", dimension:"4\"x8\""},
+  "Concreto 2500 Anillos": {resistencia:17, tipoMaterial:"Concreto", dimension:"4\"x8\""}
+};
+
+const PLANTILLA_HEADERS = ["Codigo_Obra","Servicio_envio","Fecha_recoleccion","Email","Telefono","Contacto",
+  "Observaciones_solicitud","Numero_muestra","Fecha_fundida","Hora_toma","Tipo_Material","Codigo_dimension",
+  "Numero_Remision","Concretera","Codigo_Mezcla","Asentamiento_mm","Resistencia_Nominal_Mpa","Localizacion",
+  "Dia1","Dia3","Dia7","Dia14","Dia28","Dia56","Testigo28","Testigo56","OtroDia","CantidadOtroDia",
+  "Observaciones_Muestra"];
+
+const AGE_FIELDS = [
+  {key:"dia1", label:"Día 1", primary:false},
+  {key:"dia3", label:"Día 3", primary:false},
+  {key:"dia7", label:"Día 7", primary:true},
+  {key:"dia14", label:"Día 14", primary:true},
+  {key:"dia28", label:"Día 28", primary:true},
+  {key:"dia56", label:"Día 56", primary:false},
+  {key:"testigo28", label:"Testigo 28", primary:false},
+  {key:"testigo56", label:"Testigo 56", primary:false}
+];
+
+/* =========================================================
+   UTILIDADES
+   ========================================================= */
+function uid(){ return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function pad2(n){ return String(n).padStart(2,'0'); }
+function fmtDateISO(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function todayISO(){ return fmtDateISO(new Date()); }
+function nowHHMM(){ const d=new Date(); return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
+function parseISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function fmtDateHuman(iso){
+  if(!iso) return '';
+  const d = parseISO(iso);
+  const dias=['dom','lun','mar','mié','jué','vie','sáb'];
+  return dias[d.getDay()]+' '+d.getDate()+'/'+pad2(d.getMonth()+1);
+}
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showToast(msg){
+  const wrap = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.transition='opacity .25s'; el.style.opacity='0'; setTimeout(()=>el.remove(),260); }, 2200);
+}
+
+/* =========================================================
+   FESTIVOS DE COLOMBIA (Ley Emiliani) — para sugerir fecha de recolección
+   ========================================================= */
+function easterSunday(year){
+  const a=year%19, b=Math.floor(year/100), c=year%100;
+  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25), g=Math.floor((b-f+1)/3);
+  const h=(19*a+b-d-g+15)%30, i=Math.floor(c/4), k=c%4;
+  const l=(32+2*e+2*i-h-k)%7, m=Math.floor((a+11*h+22*l)/451);
+  const month=Math.floor((h+l-7*m+114)/31), day=((h+l-7*m+114)%31)+1;
+  return new Date(year, month-1, day);
+}
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function nextMonday(d){ const dow=d.getDay(); const add=(1-dow+7)%7; return addDays(d, add); }
+function colombiaHolidaySet(year){
+  const set = new Set();
+  const push = d => set.add(fmtDateISO(d));
+  push(new Date(year,0,1)); push(new Date(year,4,1)); push(new Date(year,6,20));
+  push(new Date(year,7,7)); push(new Date(year,11,8)); push(new Date(year,11,25));
+  const easter = easterSunday(year);
+  push(addDays(easter,-3)); push(addDays(easter,-2));
+  push(nextMonday(new Date(year,0,6)));
+  push(nextMonday(new Date(year,2,19)));
+  push(nextMonday(addDays(easter,39)));
+  push(nextMonday(addDays(easter,60)));
+  push(nextMonday(addDays(easter,68)));
+  push(nextMonday(new Date(year,5,29)));
+  if(year>=2026) push(nextMonday(new Date(year,6,9)));
+  push(nextMonday(new Date(year,7,15)));
+  push(nextMonday(new Date(year,9,12)));
+  push(nextMonday(new Date(year,10,1)));
+  push(nextMonday(new Date(year,10,11)));
+  return set;
+}
+function isHoliday(d){ return colombiaHolidaySet(d.getFullYear()).has(fmtDateISO(d)); }
+function suggestFechaRecoleccion(fromISO){
+  let d = fromISO ? parseISO(fromISO) : new Date();
+  const dow = d.getDay();
+  const offset = (1 - dow + 7) % 7 || 7; // próximo lunes (si hoy es lunes, el de la semana siguiente)
+  d = addDays(d, offset);
+  let guard = 0;
+  while(isHoliday(d) && guard < 6){ d = addDays(d,1); guard++; }
+  return fmtDateISO(d);
+}
+
+/* =========================================================
+   ESTADO / PERSISTENCIA (localStorage)
+   ========================================================= */
+const STORE_KEYS = {
+  config: 'sgs_cilindros_config_v1',
+  muestras: 'sgs_cilindros_muestras_v1',
+  historial: 'sgs_cilindros_historial_v1',
+  concreteras: 'sgs_cilindros_concreteras_v1',
+  mezclas: 'sgs_cilindros_mezclas_v1',
+  dimensiones: 'sgs_cilindros_dimensiones_v1',
+  localizaciones: 'sgs_cilindros_localizaciones_v1'
+};
+
+function loadJSON(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    if(raw==null) return fallback;
+    return JSON.parse(raw);
+  }catch(e){ return fallback; }
+}
+function saveJSON(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); return true; }
+  catch(e){ console.error('storage error', e); return false; }
+}
+
+let state = {
+  config: loadJSON(STORE_KEYS.config, {
+    codigoObra: 'M-8534 AMBARTE',
+    servicioEnvio: 'SI',
+    email: '',
+    telefono: '',
+    contacto: '',
+    observacionesSolicitud: ''
+  }),
+  muestras: loadJSON(STORE_KEYS.muestras, []),
+  historial: loadJSON(STORE_KEYS.historial, []),
+  concreteras: loadJSON(STORE_KEYS.concreteras, CONCRETERAS_SEED),
+  mezclas: loadJSON(STORE_KEYS.mezclas, MEZCLAS_SEED),
+  dimensiones: loadJSON(STORE_KEYS.dimensiones, DIMENSIONES_POR_TIPO),
+  localizaciones: loadJSON(STORE_KEYS.localizaciones, [])
+};
+
+function persist(part){
+  const map = {
+    config: STORE_KEYS.config, muestras: STORE_KEYS.muestras, historial: STORE_KEYS.historial,
+    concreteras: STORE_KEYS.concreteras, mezclas: STORE_KEYS.mezclas,
+    dimensiones: STORE_KEYS.dimensiones, localizaciones: STORE_KEYS.localizaciones
+  };
+  if(part){ saveJSON(map[part], state[part]); }
+  else{ Object.keys(map).forEach(k => saveJSON(map[k], state[k])); }
+}
+
+function blankMuestra(){
+  return {
+    id: uid(),
+    numeroMuestra: '',
+    fechaFundida: todayISO(),
+    horaToma: nowHHMM(),
+    tipoMaterial: 'Concreto',
+    codigoDimension: '4"x8"',
+    numeroRemision: '',
+    concretera: CONCRETERAS_FAVORITAS[0],
+    codigoMezcla: '',
+    asentamientoMm: '',
+    resistenciaNominalMpa: '',
+    localizacion: '',
+    dia1:0, dia3:0, dia7:0, dia14:0, dia28:0, dia56:0, testigo28:0, testigo56:0,
+    otroDia:'', cantidadOtroDia:0,
+    observacionesMuestra: ''
+  };
+}
+
+let draft = blankMuestra();
+let editingId = null;
+
+/* =========================================================
+   RENDER: shell
+   ========================================================= */
+function render(){
+  const app = document.getElementById('app');
+  const scrollY = window.scrollY;
+  app.innerHTML = renderConfigCard() + renderCatalogosCard() + renderFormCard() +
+                   renderSummaryBar() + renderListCard() + renderExportCard() + renderHistorialCard();
+  bindEvents();
+  window.scrollTo(0, scrollY);
+}
+
+/* ---------- Configuración ---------- */
+function renderConfigCard(){
+  const c = state.config;
+  return `
+  <details class="card" id="cfgDetails">
+    <summary>
+      <span class="label"><span class="dot"></span>Configuración de la solicitud</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="details-body">
+      <p class="card-hint">Estos datos se repiten en todas las filas de la plantilla SGS. Se guardan en este dispositivo.</p>
+      <label class="field">
+        <span class="lbl">Código de obra</span>
+        <input type="text" id="cfgCodigoObra" value="${escapeHtml(c.codigoObra)}" placeholder="Ej: M-8534 AMBARTE">
+      </label>
+      <div class="row2">
+        <label class="field">
+          <span class="lbl">Contacto</span>
+          <input type="text" id="cfgContacto" value="${escapeHtml(c.contacto)}" placeholder="Nombre">
+        </label>
+        <label class="field">
+          <span class="lbl">Teléfono</span>
+          <input type="tel" id="cfgTelefono" value="${escapeHtml(c.telefono)}" placeholder="300 000 0000">
+        </label>
+      </div>
+      <label class="field">
+        <span class="lbl">Email</span>
+        <input type="email" id="cfgEmail" value="${escapeHtml(c.email)}" placeholder="correo@empresa.com">
+      </label>
+      <label class="field">
+        <span class="lbl">¿Servicio de envío (mensajería)?</span>
+        <div class="chipset" id="cfgServicioEnvio">
+          <button type="button" class="chip ${c.servicioEnvio==='SI'?'active':''}" data-val="SI">Sí</button>
+          <button type="button" class="chip ${c.servicioEnvio==='NO'?'active':''}" data-val="NO">No</button>
+        </div>
+      </label>
+      <label class="field">
+        <span class="lbl">Observaciones de la solicitud (opcional)</span>
+        <textarea id="cfgObs" placeholder="Aplica a toda la solicitud">${escapeHtml(c.observacionesSolicitud)}</textarea>
+      </label>
+      <button class="btn btn-primary btn-block" id="btnSaveConfig">Guardar configuración</button>
+    </div>
+  </details>`;
+}
+
+/* ---------- Catálogos (importar) ---------- */
+function renderCatalogosCard(){
+  return `
+  <details class="card" id="catDetails">
+    <summary>
+      <span class="label"><span class="dot"></span>Catálogos</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="details-body">
+      <p class="card-hint">Actualiza las listas de concreteras y mezclas importando los Excel de SGS. No es obligatorio: ya vienen precargadas.</p>
+      <div class="import-row">
+        <div>
+          <div class="ir-text">Plantilla oficial SGS (hoja "Bases")</div>
+          <div class="ir-count">${state.concreteras.length} concreteras cargadas</div>
+        </div>
+        <label class="btn btn-outline btn-sm" for="fileTemplate">Importar</label>
+        <input type="file" id="fileTemplate" accept=".xlsx,.xls">
+      </div>
+      <div class="import-row">
+        <div>
+          <div class="ir-text">Histórico de resultados / fallas SGS</div>
+          <div class="ir-count">${Object.keys(state.mezclas).length} mezclas en catálogo</div>
+        </div>
+        <label class="btn btn-outline btn-sm" for="fileHistorico">Importar</label>
+        <input type="file" id="fileHistorico" accept=".xlsx,.xls">
+      </div>
+    </div>
+  </details>`;
+}
+
+/* ---------- Formulario de registro rápido ---------- */
+function ageBoxHtml(f){
+  const v = draft[f.key] || 0;
+  return `
+    <div class="age-box ${f.primary?'primary':''}">
+      <div class="age-lbl">${f.label}</div>
+      <div class="stepper">
+        <button type="button" data-age-dec="${f.key}">–</button>
+        <span class="val" id="ageVal_${f.key}">${v}</span>
+        <button type="button" data-age-inc="${f.key}">+</button>
+      </div>
+    </div>`;
+}
+function renderFormCard(){
+  const concreterasOptions = [...CONCRETERAS_FAVORITAS, ...state.concreteras.filter(x=>!CONCRETERAS_FAVORITAS.includes(x))];
+  const dims = state.dimensiones[draft.tipoMaterial] || [];
+  const totalCil = AGE_FIELDS.reduce((s,f)=>s+(Number(draft[f.key])||0),0) + (Number(draft.cantidadOtroDia)||0);
+  return `
+  <section class="card">
+    <h2><span class="dot"></span>${editingId? 'Editar muestra' : 'Registrar muestra'}</h2>
+
+    <div class="row2">
+      <label class="field">
+        <span class="lbl">N.º de muestra</span>
+        <input type="text" id="fNumeroMuestra" value="${escapeHtml(draft.numeroMuestra)}" placeholder="Consecutivo del cilindrero, ej: 032" inputmode="numeric">
+      </label>
+      <label class="field">
+        <span class="lbl">N.º de remisión</span>
+        <input type="text" id="fRemision" value="${escapeHtml(draft.numeroRemision)}" placeholder="Ej: FB250000091664">
+      </label>
+    </div>
+
+    <div class="row2">
+      <label class="field">
+        <span class="lbl">Fecha de fundida</span>
+        <input type="date" id="fFecha" value="${draft.fechaFundida}">
+      </label>
+      <label class="field">
+        <span class="lbl">Hora de toma</span>
+        <input type="time" id="fHora" value="${draft.horaToma}">
+      </label>
+    </div>
+
+    <label class="field">
+      <span class="lbl">Localización</span>
+      <input type="text" id="fLocalizacion" list="dlLocalizaciones" value="${escapeHtml(draft.localizacion)}" placeholder="Ej: PILA C2 - A2">
+      <datalist id="dlLocalizaciones">${state.localizaciones.map(l=>`<option value="${escapeHtml(l)}">`).join('')}</datalist>
+    </label>
+
+    <label class="field">
+      <span class="lbl">Concretera</span>
+      <input type="text" id="fConcretera" list="dlConcreteras" value="${escapeHtml(draft.concretera)}" placeholder="Buscar...">
+      <datalist id="dlConcreteras">${concreterasOptions.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
+      <div class="chipset" style="margin-top:7px;" id="chipsConcreteras">
+        ${CONCRETERAS_FAVORITAS.map(c=>`<button type="button" class="chip small ${draft.concretera===c?'active':''}" data-concretera="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('')}
+      </div>
+    </label>
+
+    <label class="field">
+      <span class="lbl">Tipo de material</span>
+      <div class="chipset" id="chipsTipoMaterial">
+        ${TIPOS_MATERIAL.map(t=>`<button type="button" class="chip ${draft.tipoMaterial===t?'active':''}" data-tipo="${t}">${t}</button>`).join('')}
+      </div>
+    </label>
+
+    <label class="field">
+      <span class="lbl">Dimensión del cilindro</span>
+      <div class="chipset" id="chipsDimension">
+        ${dims.map(d=>`<button type="button" class="chip ${draft.codigoDimension===d?'active':''}" data-dim="${escapeHtml(d)}">${escapeHtml(d)}</button>`).join('')}
+      </div>
+    </label>
+
+    <label class="field">
+      <span class="lbl">Código de mezcla</span>
+      <input type="text" id="fMezcla" list="dlMezclas" value="${escapeHtml(draft.codigoMezcla)}" placeholder="Buscar o escribir uno nuevo...">
+      <datalist id="dlMezclas">${Object.keys(state.mezclas).map(m=>`<option value="${escapeHtml(m)}">`).join('')}</datalist>
+    </label>
+
+    <div class="row2">
+      <label class="field">
+        <span class="lbl">Asentamiento (mm)</span>
+        <input type="number" id="fAsentamiento" value="${draft.asentamientoMm}" placeholder="Ej: 150" inputmode="decimal">
+      </label>
+      <label class="field">
+        <span class="lbl">Resistencia nominal (MPa)</span>
+        <input type="number" id="fResistencia" value="${draft.resistenciaNominalMpa}" placeholder="Ej: 28" inputmode="decimal">
+      </label>
+    </div>
+
+    <div class="lbl" style="margin-bottom:7px;">Cilindros a ensayar por edad</div>
+    <div class="btn-row" style="margin-bottom:10px;">
+      <button type="button" class="chip small" id="presetTresTresTres">3-3-3 (7-14-28)</button>
+      <button type="button" class="chip small" id="presetTestigo28">Testigo 28 (×3)</button>
+      <button type="button" class="chip small" id="presetTestigo2856">Testigo 28+56 (×3+3)</button>
+      <button type="button" class="chip small" id="presetClear">Limpiar</button>
+    </div>
+    <div class="age-grid" id="ageGrid">
+      ${AGE_FIELDS.map(ageBoxHtml).join('')}
+    </div>
+    <div class="row2">
+      <label class="field">
+        <span class="lbl">Otro día (n.º)</span>
+        <input type="number" id="fOtroDia" value="${draft.otroDia}" placeholder="Ej: 90">
+      </label>
+      <label class="field">
+        <span class="lbl">Cantidad para ese día</span>
+        <input type="number" id="fCantidadOtroDia" value="${draft.cantidadOtroDia}" placeholder="0">
+      </label>
+    </div>
+
+    <label class="field">
+      <span class="lbl">Observaciones de la muestra (opcional)</span>
+      <textarea id="fObsMuestra" placeholder="Notas de campo...">${escapeHtml(draft.observacionesMuestra)}</textarea>
+    </label>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; margin:4px 0 12px;">
+      <span class="total-pill">🧱 Total cilindros: ${totalCil}</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnAgregar" style="flex:1;">${editingId? 'Guardar cambios' : 'Agregar a la lista'}</button>
+      ${editingId? '<button class="btn btn-outline" id="btnCancelEdit">Cancelar</button>' : ''}
+    </div>
+  </section>`;
+}
+
+/* ---------- Resumen ---------- */
+function totalCilindrosDe(m){
+  return AGE_FIELDS.reduce((s,f)=>s+(Number(m[f.key])||0),0) + (Number(m.cantidadOtroDia)||0);
+}
+function renderSummaryBar(){
+  const n = state.muestras.length;
+  const totalCil = state.muestras.reduce((s,m)=>s+totalCilindrosDe(m),0);
+  const remisiones = new Set(state.muestras.map(m=>m.numeroRemision).filter(Boolean)).size;
+  return `
+  <div class="summary-bar">
+    <div class="summary-stat"><div class="n">${n}</div><div class="l">MUESTRAS</div></div>
+    <div class="summary-stat"><div class="n">${totalCil}</div><div class="l">CILINDROS</div></div>
+    <div class="summary-stat"><div class="n">${remisiones}</div><div class="l">REMISIONES</div></div>
+  </div>`;
+}
+
+/* ---------- Lista consolidada ---------- */
+function ageTagsFor(m){
+  const tags = AGE_FIELDS.filter(f=>Number(m[f.key])>0).map(f=>`<span class="tag qty">${f.label.replace('Día ','D').replace('Testigo ','T')}: ${m[f.key]}</span>`);
+  if(Number(m.cantidadOtroDia)>0){ tags.push(`<span class="tag qty">D${m.otroDia||'?'}: ${m.cantidadOtroDia}</span>`); }
+  return tags.join('');
+}
+function renderListCard(){
+  const list = [...state.muestras].sort((a,b)=> (a.fechaFundida+a.horaToma).localeCompare(b.fechaFundida+b.horaToma));
+  const items = list.map(m => `
+    <div class="muestra-card" data-id="${m.id}">
+      <div class="muestra-top">
+        <div>
+          <span class="muestra-num">#${escapeHtml(m.numeroMuestra||'?')}</span>
+          <div class="muestra-meta">${fmtDateHuman(m.fechaFundida)} · ${escapeHtml(m.horaToma)} · ${escapeHtml(m.localizacion||'sin localización')}</div>
+        </div>
+        <div class="muestra-actions">
+          <button class="icon-btn" data-edit="${m.id}" title="Editar">✎</button>
+          <button class="icon-btn danger" data-del="${m.id}" title="Eliminar">🗑</button>
+        </div>
+      </div>
+      <div class="muestra-tags">
+        <span class="tag">${escapeHtml(m.concretera||'-')}</span>
+        <span class="tag">Asent. ${escapeHtml(String(m.asentamientoMm||'-'))} mm</span>
+        <span class="tag">${escapeHtml(String(m.resistenciaNominalMpa||'-'))} MPa</span>
+        <span class="tag">${escapeHtml(m.numeroRemision||'sin remisión')}</span>
+        ${ageTagsFor(m)}
+      </div>
+    </div>`).join('');
+  return `
+  <section class="card">
+    <h2><span class="dot"></span>Consolidado de la semana</h2>
+    ${list.length? items : `<div class="empty-state"><span class="big">📋</span>Aún no hay muestras registradas.<br>Agrega la primera arriba.</div>`}
+  </section>`;
+}
+
+/* ---------- Generar solicitud / exportar ---------- */
+function renderExportCard(){
+  const sugerida = suggestFechaRecoleccion(todayISO());
+  return `
+  <section class="card">
+    <h2><span class="dot"></span>Generar solicitud</h2>
+    <p class="card-hint">Genera el Excel con el mismo formato de la plantilla SGS, listo para copiar o enviar.</p>
+    <label class="field">
+      <span class="lbl">Fecha de recolección</span>
+      <input type="date" id="fFechaRecoleccion" value="${sugerida}">
+      <div class="card-hint" style="margin:6px 0 0;">Sugerida: próximo lunes hábil (martes si el lunes es festivo).</div>
+    </label>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnDescargarExcel" style="flex:1;" ${state.muestras.length? '' : 'disabled'}>⬇ Descargar Excel (.xlsx)</button>
+    </div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-outline" id="btnCopiarTSV" style="flex:1;" ${state.muestras.length? '' : 'disabled'}>📋 Copiar filas (pegar en Excel)</button>
+    </div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-ghost" id="btnArchivarSemana" ${state.muestras.length? '' : 'disabled'}>Marcar semana como enviada y empezar una nueva</button>
+    </div>
+  </section>`;
+}
+
+/* ---------- Historial ---------- */
+function renderHistorialCard(){
+  if(!state.historial.length) return '';
+  const items = [...state.historial].reverse().map(h => `
+    <div class="history-item">
+      <div>
+        <div class="hi-main">Recolección ${fmtDateHuman(h.fechaRecoleccion)}</div>
+        <div class="hi-sub">${h.count} muestras · enviada ${fmtDateHuman(h.fechaExport)}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" data-reexport="${h.id}">Volver a descargar</button>
+    </div>`).join('');
+  return `
+  <details class="card" id="histDetails">
+    <summary>
+      <span class="label"><span class="dot"></span>Historial de solicitudes</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="details-body">${items}</div>
+  </details>`;
+}
+
+/* =========================================================
+   HELPERS de exportación
+   ========================================================= */
+function numOrBlank(v){ const n=Number(v); return (n && n>0) ? n : ''; }
+function fmtDateDMY(iso){ if(!iso) return ''; const d=parseISO(iso); return pad2(d.getDate())+'/'+pad2(d.getMonth()+1)+'/'+d.getFullYear(); }
+
+function buildExportRows(fechaRecoleccionISO, list){
+  const c = state.config;
+  const rows = [PLANTILLA_HEADERS];
+  list.forEach(m=>{
+    rows.push([
+      c.codigoObra, c.servicioEnvio, fmtDateDMY(fechaRecoleccionISO), c.email, c.telefono, c.contacto, c.observacionesSolicitud,
+      m.numeroMuestra, fmtDateDMY(m.fechaFundida), m.horaToma, m.tipoMaterial, m.codigoDimension, m.numeroRemision,
+      m.concretera, m.codigoMezcla, numOrBlank(m.asentamientoMm), numOrBlank(m.resistenciaNominalMpa), m.localizacion,
+      numOrBlank(m.dia1), numOrBlank(m.dia3), numOrBlank(m.dia7), numOrBlank(m.dia14), numOrBlank(m.dia28), numOrBlank(m.dia56),
+      numOrBlank(m.testigo28), numOrBlank(m.testigo56), m.otroDia || '', numOrBlank(m.cantidadOtroDia), m.observacionesMuestra || ''
+    ]);
+  });
+  return rows;
+}
+function downloadWorkbook(rows, filename){
+  if(typeof XLSX === 'undefined'){
+    showToast('No se pudo cargar el generador de Excel (sin conexión). Usa "Copiar filas" en su lugar.');
+    return;
+  }
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = PLANTILLA_HEADERS.map(()=>({wch:15}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Plantilla de Concretos');
+  XLSX.writeFile(wb, filename);
+}
+function rowsToTSV(rows){
+  return rows.map(r=>r.map(cell=>String(cell==null?'':cell)).join('\t')).join('\n');
+}
+async function copyTSVToClipboard(rows){
+  const text = rowsToTSV(rows);
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('Filas copiadas. Pégalas en la plantilla de Excel.');
+  }catch(e){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand('copy'); ta.remove();
+      showToast('Filas copiadas. Pégalas en la plantilla de Excel.');
+    }catch(e2){
+      showToast('No se pudo copiar automáticamente. Usa "Descargar Excel".');
+    }
+  }
+}
+
+/* =========================================================
+   IMPORTAR CATÁLOGOS DESDE EXCEL
+   ========================================================= */
+function handleFileTemplate(file){
+  if(typeof XLSX === 'undefined'){ showToast('No se pudo cargar el lector de Excel (sin conexión).'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const basesName = wb.SheetNames.find(n => n.toLowerCase().includes('base')) || wb.SheetNames[Math.min(1,wb.SheetNames.length-1)];
+      const ws = wb.Sheets[basesName];
+      const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      const concreteras = [];
+      const dims = {Concreto:[], Mortero:[], Grouting:[], Viguetas:[]};
+      const tipoCols = {1:'Concreto', 2:'Mortero', 3:'Grouting', 4:'Viguetas'};
+      for(let i=1;i<aoa.length;i++){
+        const row = aoa[i];
+        if(row[5]) concreteras.push(String(row[5]).trim());
+        Object.keys(tipoCols).forEach(ci=>{
+          const v = row[Number(ci)];
+          if(v && !dims[tipoCols[ci]].includes(String(v).trim())) dims[tipoCols[ci]].push(String(v).trim());
+        });
+      }
+      if(concreteras.length){ state.concreteras = Array.from(new Set(concreteras)).sort((a,b)=>a.localeCompare(b)); persist('concreteras'); }
+      if(Object.values(dims).some(a=>a.length)){ state.dimensiones = dims; persist('dimensiones'); }
+      showToast('Catálogo de la plantilla SGS actualizado.');
+      render();
+    }catch(err){
+      console.error(err);
+      showToast('No se pudo leer ese archivo como plantilla SGS.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function handleFileHistorico(file){
+  if(typeof XLSX === 'undefined'){ showToast('No se pudo cargar el lector de Excel (sin conexión).'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, {defval:''});
+      let mezclasAdded = 0, locAdded = 0;
+      json.forEach(r=>{
+        const mezcla = String(r.codigoMezcla||'').trim();
+        if(mezcla && !state.mezclas[mezcla]){
+          state.mezclas[mezcla] = {
+            resistencia: Number(r['Resistencia Nominal Mpa']) || '',
+            tipoMaterial: r.tipoMaterial || 'Concreto',
+            dimension: r.dimension || '4"x8"'
+          };
+          mezclasAdded++;
+        }
+        const loc = String(r.localizacion||'').trim();
+        if(loc && !state.localizaciones.includes(loc)){ state.localizaciones.push(loc); locAdded++; }
+        const conc = String(r.concretera||'').trim();
+        if(conc && !state.concreteras.includes(conc)){ state.concreteras.push(conc); }
+      });
+      persist('mezclas'); persist('localizaciones'); persist('concreteras');
+      showToast(`Histórico importado: ${mezclasAdded} mezclas y ${locAdded} localizaciones nuevas.`);
+      render();
+    }catch(err){
+      console.error(err);
+      showToast('No se pudo leer ese archivo histórico.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* =========================================================
+   FORM: sync DOM <-> draft, autofill, validación
+   ========================================================= */
+function syncDraftFromDOM(){
+  const g = id => document.getElementById(id);
+  if(!g('fNumeroMuestra')) return;
+  draft.numeroMuestra = g('fNumeroMuestra').value;
+  draft.numeroRemision = g('fRemision').value;
+  draft.fechaFundida = g('fFecha').value || todayISO();
+  draft.horaToma = g('fHora').value || nowHHMM();
+  draft.localizacion = g('fLocalizacion').value;
+  draft.concretera = g('fConcretera').value;
+  draft.codigoMezcla = g('fMezcla').value;
+  draft.asentamientoMm = g('fAsentamiento').value;
+  draft.resistenciaNominalMpa = g('fResistencia').value;
+  draft.otroDia = g('fOtroDia').value;
+  draft.cantidadOtroDia = g('fCantidadOtroDia').value;
+  draft.observacionesMuestra = g('fObsMuestra').value;
+}
+function rerenderForm(){ syncDraftFromDOM(); render(); }
+
+function autofillFromMezcla(name){
+  const info = state.mezclas[name];
+  if(!info) return;
+  if(!draft.resistenciaNominalMpa) draft.resistenciaNominalMpa = info.resistencia || '';
+  if(info.tipoMaterial) draft.tipoMaterial = info.tipoMaterial;
+  if(info.dimension && (state.dimensiones[info.tipoMaterial]||[]).includes(info.dimension)) draft.codigoDimension = info.dimension;
+}
+
+function learnFromMuestra(m){
+  if(m.localizacion && !state.localizaciones.includes(m.localizacion)){
+    state.localizaciones.unshift(m.localizacion);
+    state.localizaciones = state.localizaciones.slice(0,40);
+    persist('localizaciones');
+  }
+  if(m.concretera && !state.concreteras.includes(m.concretera)){
+    state.concreteras.push(m.concretera);
+    persist('concreteras');
+  }
+  if(m.codigoMezcla && !state.mezclas[m.codigoMezcla]){
+    state.mezclas[m.codigoMezcla] = {
+      resistencia: Number(m.resistenciaNominalMpa)||'', tipoMaterial: m.tipoMaterial, dimension: m.codigoDimension
+    };
+    persist('mezclas');
+  }
+}
+
+/* =========================================================
+   EVENTOS
+   ========================================================= */
+function bindEvents(){
+  const app = document.getElementById('app');
+
+  /* ----- Config ----- */
+  const cfgServicio = document.getElementById('cfgServicioEnvio');
+  if(cfgServicio){
+    cfgServicio.querySelectorAll('.chip').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        cfgServicio.querySelectorAll('.chip').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  }
+  const btnSaveConfig = document.getElementById('btnSaveConfig');
+  if(btnSaveConfig){
+    btnSaveConfig.addEventListener('click', ()=>{
+      state.config = {
+        codigoObra: document.getElementById('cfgCodigoObra').value.trim(),
+        servicioEnvio: cfgServicio.querySelector('.chip.active')?.dataset.val || 'SI',
+        email: document.getElementById('cfgEmail').value.trim(),
+        telefono: document.getElementById('cfgTelefono').value.trim(),
+        contacto: document.getElementById('cfgContacto').value.trim(),
+        observacionesSolicitud: document.getElementById('cfgObs').value.trim()
+      };
+      persist('config');
+      showToast('Configuración guardada.');
+      render();
+      const d = document.getElementById('cfgDetails'); if(d) d.open = true;
+    });
+  }
+
+  /* ----- Catálogos: importar ----- */
+  const fileTemplate = document.getElementById('fileTemplate');
+  if(fileTemplate) fileTemplate.addEventListener('change', e=>{ if(e.target.files[0]) handleFileTemplate(e.target.files[0]); e.target.value=''; });
+  const fileHistorico = document.getElementById('fileHistorico');
+  if(fileHistorico) fileHistorico.addEventListener('change', e=>{ if(e.target.files[0]) handleFileHistorico(e.target.files[0]); e.target.value=''; });
+
+  /* ----- Formulario: chips ----- */
+  app.querySelectorAll('#chipsTipoMaterial .chip').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      syncDraftFromDOM();
+      draft.tipoMaterial = btn.dataset.tipo;
+      const dims = state.dimensiones[draft.tipoMaterial] || [];
+      if(!dims.includes(draft.codigoDimension)) draft.codigoDimension = dims[0] || '';
+      render();
+    });
+  });
+  app.querySelectorAll('#chipsDimension .chip').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ syncDraftFromDOM(); draft.codigoDimension = btn.dataset.dim; render(); });
+  });
+  app.querySelectorAll('#chipsConcreteras .chip').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ syncDraftFromDOM(); draft.concretera = btn.dataset.concretera; render(); });
+  });
+
+  /* ----- Formulario: mezcla autofill ----- */
+  const fMezcla = document.getElementById('fMezcla');
+  if(fMezcla){
+    fMezcla.addEventListener('change', ()=>{
+      syncDraftFromDOM();
+      autofillFromMezcla(fMezcla.value.trim());
+      render();
+    });
+  }
+
+  /* ----- Formulario: age steppers ----- */
+  app.querySelectorAll('[data-age-inc]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      syncDraftFromDOM();
+      const k = btn.dataset.ageInc;
+      draft[k] = (Number(draft[k])||0) + 1;
+      render();
+    });
+  });
+  app.querySelectorAll('[data-age-dec]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      syncDraftFromDOM();
+      const k = btn.dataset.ageDec;
+      draft[k] = Math.max(0, (Number(draft[k])||0) - 1);
+      render();
+    });
+  });
+
+  /* ----- Formulario: presets ----- */
+  const presetTresTresTres = document.getElementById('presetTresTresTres');
+  if(presetTresTresTres) presetTresTresTres.addEventListener('click', ()=>{
+    syncDraftFromDOM(); draft.dia7=3; draft.dia14=3; draft.dia28=3; render();
+  });
+  const presetTestigo28 = document.getElementById('presetTestigo28');
+  if(presetTestigo28) presetTestigo28.addEventListener('click', ()=>{
+    syncDraftFromDOM(); draft.testigo28=3; render();
+  });
+  const presetTestigo2856 = document.getElementById('presetTestigo2856');
+  if(presetTestigo2856) presetTestigo2856.addEventListener('click', ()=>{
+    syncDraftFromDOM(); draft.testigo28=3; draft.testigo56=3; render();
+  });
+  const presetClear = document.getElementById('presetClear');
+  if(presetClear) presetClear.addEventListener('click', ()=>{
+    syncDraftFromDOM();
+    AGE_FIELDS.forEach(f=>draft[f.key]=0);
+    draft.otroDia=''; draft.cantidadOtroDia=0;
+    render();
+  });
+
+  /* ----- Formulario: agregar / guardar / cancelar ----- */
+  const btnAgregar = document.getElementById('btnAgregar');
+  if(btnAgregar){
+    btnAgregar.addEventListener('click', ()=>{
+      syncDraftFromDOM();
+      if(!draft.numeroMuestra.trim()){ showToast('Falta el número de muestra.'); return; }
+      if(!draft.concretera.trim()){ showToast('Falta la concretera.'); return; }
+      const total = AGE_FIELDS.reduce((s,f)=>s+(Number(draft[f.key])||0),0) + (Number(draft.cantidadOtroDia)||0);
+      if(total<=0){ showToast('Agrega al menos un cilindro por edad.'); return; }
+
+      const muestra = { ...draft };
+      learnFromMuestra(muestra);
+
+      if(editingId){
+        const idx = state.muestras.findIndex(m=>m.id===editingId);
+        if(idx>-1) state.muestras[idx] = muestra;
+        showToast('Muestra actualizada.');
+      }else{
+        state.muestras.push(muestra);
+        showToast('Muestra agregada.');
+      }
+      persist('muestras');
+      draft = blankMuestra();
+      editingId = null;
+      render();
+    });
+  }
+  const btnCancelEdit = document.getElementById('btnCancelEdit');
+  if(btnCancelEdit) btnCancelEdit.addEventListener('click', ()=>{ draft = blankMuestra(); editingId=null; render(); });
+
+  /* ----- Lista: editar / eliminar ----- */
+  app.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const m = state.muestras.find(x=>x.id===btn.dataset.edit);
+      if(!m) return;
+      draft = { ...m };
+      editingId = m.id;
+      render();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+  app.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(!confirm('¿Eliminar esta muestra de la lista?')) return;
+      state.muestras = state.muestras.filter(x=>x.id!==btn.dataset.del);
+      persist('muestras');
+      if(editingId===btn.dataset.del){ draft=blankMuestra(); editingId=null; }
+      showToast('Muestra eliminada.');
+      render();
+    });
+  });
+
+  /* ----- Exportar ----- */
+  const btnDescargarExcel = document.getElementById('btnDescargarExcel');
+  if(btnDescargarExcel){
+    btnDescargarExcel.addEventListener('click', ()=>{
+      const fecha = document.getElementById('fFechaRecoleccion').value || suggestFechaRecoleccion(todayISO());
+      const rows = buildExportRows(fecha, state.muestras);
+      downloadWorkbook(rows, `Solicitud_Cilindros_${state.config.codigoObra.replace(/\s+/g,'_')}_${fecha}.xlsx`);
+      showToast('Excel descargado.');
+    });
+  }
+  const btnCopiarTSV = document.getElementById('btnCopiarTSV');
+  if(btnCopiarTSV){
+    btnCopiarTSV.addEventListener('click', ()=>{
+      const fecha = document.getElementById('fFechaRecoleccion').value || suggestFechaRecoleccion(todayISO());
+      const rows = buildExportRows(fecha, state.muestras);
+      copyTSVToClipboard(rows);
+    });
+  }
+  const btnArchivarSemana = document.getElementById('btnArchivarSemana');
+  if(btnArchivarSemana){
+    btnArchivarSemana.addEventListener('click', ()=>{
+      if(!confirm('Esto archiva la lista actual en el historial y comienza una semana nueva. ¿Continuar?')) return;
+      const fecha = document.getElementById('fFechaRecoleccion').value || suggestFechaRecoleccion(todayISO());
+      const rows = buildExportRows(fecha, state.muestras);
+      state.historial.push({
+        id: uid(), fechaRecoleccion: fecha, fechaExport: todayISO(),
+        count: state.muestras.length, rows
+      });
+      state.muestras = [];
+      persist('historial'); persist('muestras');
+      draft = blankMuestra(); editingId = null;
+      showToast('Semana archivada. ¡Lista para la siguiente!');
+      render();
+    });
+  }
+
+  /* ----- Historial: reexportar ----- */
+  app.querySelectorAll('[data-reexport]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const h = state.historial.find(x=>x.id===btn.dataset.reexport);
+      if(!h) return;
+      downloadWorkbook(h.rows, `Solicitud_Cilindros_${state.config.codigoObra.replace(/\s+/g,'_')}_${h.fechaRecoleccion}.xlsx`);
+      showToast('Excel descargado de nuevo.');
+    });
+  });
+}
+
+/* =========================================================
+   RENDER con persistencia de <details> abiertos
+   ========================================================= */
+const _originalRender = render;
+render = function(){
+  const openState = {
+    cfg: document.getElementById('cfgDetails')?.open,
+    cat: document.getElementById('catDetails')?.open,
+    hist: document.getElementById('histDetails')?.open
+  };
+  _originalRender();
+  if(openState.cfg && document.getElementById('cfgDetails')) document.getElementById('cfgDetails').open = true;
+  if(openState.cat && document.getElementById('catDetails')) document.getElementById('catDetails').open = true;
+  if(openState.hist && document.getElementById('histDetails')) document.getElementById('histDetails').open = true;
+};
+
+/* =========================================================
+   INIT
+   ========================================================= */
+render();
+</script>
+</body>
+</html>
