@@ -1171,13 +1171,44 @@ function postViaHiddenForm(url, payloadObj, timeoutMs){
   });
 }
 
+/* Respaldo con fetch() directo, por si el bloqueo real fuera al revés
+   de lo esperado (JSONP fallando y fetch funcionando en ese navegador). */
+async function fetchGetJson(url, timeoutMs){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), timeoutMs || 12000);
+  try{
+    const sep = url.includes('?') ? '&' : '?';
+    const res = await fetch(url + sep + '_t=' + Date.now(), {method:'GET', cache:'no-store', signal: controller.signal});
+    return await res.json();
+  } finally { clearTimeout(timer); }
+}
+async function fetchPostJson(url, payloadObj, timeoutMs){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), timeoutMs || 12000);
+  try{
+    const res = await fetch(url, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(payloadObj), signal: controller.signal
+    });
+    return await res.json();
+  } finally { clearTimeout(timer); }
+}
+
 async function syncPull(){
   const url = state.config.sheetUrl;
   if(!url) return;
   setSyncStatus('syncing'); render();
+  let data, lastErr;
   try{
-    const data = await jsonp(url);
-    if(!data || data.ok===false) throw new Error(data && data.error || 'respuesta inválida');
+    data = await jsonp(url, 8000);
+  }catch(err){
+    console.warn('syncPull: JSONP falló, probando fetch directo', err);
+    lastErr = err;
+    try{ data = await fetchGetJson(url, 10000); }
+    catch(err2){ lastErr = err2; }
+  }
+  try{
+    if(!data || data.ok===false) throw new Error((data && data.error) || (lastErr && lastErr.message) || 'respuesta inválida');
     if(Array.isArray(data.muestras)){
       const normalizados = data.muestras.map(normalizeRemoteMuestra);
       state.muestras = mergeMuestras(state.muestras, normalizados);
@@ -1213,13 +1244,21 @@ async function syncPush(silent){
   const url = state.config.sheetUrl;
   if(!url) return;
   if(!silent){ setSyncStatus('syncing'); render(); }
+  const payload = {
+    config: Object.fromEntries(SYNC_CONFIG_KEYS.map(k=>[k, state.config[k]])),
+    muestras: state.muestras
+  };
+  let data, lastErr;
   try{
-    const payload = {
-      config: Object.fromEntries(SYNC_CONFIG_KEYS.map(k=>[k, state.config[k]])),
-      muestras: state.muestras
-    };
-    const data = await postViaHiddenForm(url, payload);
-    if(!data || data.ok===false) throw new Error(data && data.error || 'respuesta inválida');
+    data = await postViaHiddenForm(url, payload, 8000);
+  }catch(err){
+    console.warn('syncPush: formulario oculto falló, probando fetch directo', err);
+    lastErr = err;
+    try{ data = await fetchPostJson(url, payload, 10000); }
+    catch(err2){ lastErr = err2; }
+  }
+  try{
+    if(!data || data.ok===false) throw new Error((data && data.error) || (lastErr && lastErr.message) || 'respuesta inválida');
     setSyncStatus('ok');
   }catch(err){
     console.error('syncPush error', err);
