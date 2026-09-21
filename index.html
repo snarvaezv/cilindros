@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light only">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjIwIiBmaWxsPSIjRkZGRkZGIi8+CiAgPHJlY3QgeD0iMSIgeT0iMSIgd2lkdGg9Ijk4IiBoZWlnaHQ9Ijk4IiByeD0iMTkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI0UyRThGMCIgc3Ryb2tlLXdpZHRoPSIyIi8+CiAgPHRleHQgeD0iOCIgeT0iNjUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iODAwIiBmb250LXNpemU9IjM4IiBmaWxsPSIjN0E3QzdCIiBsZXR0ZXItc3BhY2luZz0iLTEuNSI+U0dTPC90ZXh0PgogIDxyZWN0IHg9IjgzIiB5PSIyNiIgd2lkdGg9IjciIGhlaWdodD0iNDgiIHJ4PSIxIiBmaWxsPSIjRjk3MzE2Ii8+Cjwvc3ZnPgo=">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
 <title>Registro de Cilindros · Solicitud de Recolección</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,34 +31,11 @@
     --radius:12px;
     --radius-sm:8px;
     --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-    color-scheme: light;
+    color-scheme: light only;
   }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --bg:#0F1620;
-      --surface:#1A2332;
-      --surface-2:#212C3D;
-      --text:#E7ECF3;
-      --text-muted:#93A1B5;
-      --border:#33415A;
-      --orange-soft:#3A2415;
-      --green-soft:#123122;
-      --red-soft:#3A1616;
-      color-scheme: dark;
-    }
-  }
-  :root[data-theme="dark"]{
-    --bg:#0F1620;
-    --surface:#1A2332;
-    --surface-2:#212C3D;
-    --text:#E7ECF3;
-    --text-muted:#93A1B5;
-    --border:#33415A;
-    --orange-soft:#3A2415;
-    --green-soft:#123122;
-    --red-soft:#3A1616;
-    color-scheme: dark;
-  }
+  /* Forzado siempre en modo claro a propósito: esta app se usa a plena luz del día
+     en obra, y el modo oscuro (aunque el celular lo tenga activado) dificulta la
+     lectura bajo el sol. No sigue prefers-color-scheme por diseño. */
 
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -281,6 +261,21 @@
   .import-row .ir-count{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
   input[type=file]{display:none;}
 
+  /* autocompletado propio (reemplaza <datalist>, poco confiable en Safari/iOS) */
+  .ac-wrap{position:relative;}
+  .ac-dropdown{
+    position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:60;
+    background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius-sm);
+    max-height:230px; overflow-y:auto; box-shadow:0 10px 28px rgba(15,23,42,.16);
+    display:none;
+  }
+  .ac-dropdown.open{display:block;}
+  .ac-option{padding:11px 13px; font-size:14.5px; cursor:pointer; border-bottom:1px solid var(--border);}
+  .ac-option:last-child{border-bottom:none;}
+  .ac-option:active{background:var(--orange-soft);}
+  .ac-empty{padding:10px 13px; font-size:12.5px; color:var(--text-muted);}
+  .ac-option b{color:var(--orange-dark);}
+
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
   }
@@ -310,7 +305,7 @@
    ========================================================= */
 const CONCRETERAS_SEED = ["ADCO", "AGREGADOS Y CONCRETOS DEL OCCIDENTE", "AGREGOM", "AHINCO", "ALCONCRETOS", "ALIA", "ALION", "AMCON COLOMBIA", "APLICACIONES Y CONCRETO", "ARGOS", "ASFALTART", "ASFALTOS Y CONSTRUCCIONES BEM", "ASIRCON", "AYGEU", "BETON", "BODEGA DITAIRES", "C&G BOMBAS Y CONCRETOS S.A.S", "CAIC CAMARA DE COMERCIO", "CAMIÓN MIXER", "CARMIX ARGOS", "CASTILLA", "CASTILLA DE LA MANCHA", "CASTRO TCHERASSI", "CEMENTO BAYANO", "CEMENTOS ATLAS", "CEMENTOS PROGRESO", "CEMENTOS PROGRESO CONCRETO", "CEMENTOS TEQUENDAMA", "CEMEX", "CEMEX CENTRO SALUD ESTADIO", "CEMEX COQ", "CENTRAL HORMIGONERA", "CENTRAL HORMIGONERA S.A.", "CG CONCRETOS", "CIA PRODUCTORA DE CONCRETOS", "CIPRECOM", "CLINKER PREMEZCLADOS S.A.S.", "CM CONCRETOS", "COAGREGADOS S.A.S", "COB (CONSORCIÓN OBRAS Y BUSTILLO)", "CODIMAC", "COLCONCRETO", "CONALVIAL S.A.S", "CONASFALTO", "CONCAY", "CONCIVILES Y OBRA", "CONCONCRETO", "CONCRE EXPRESS", "CONCRE TOLIMA", "CONCREECO", "CONCREHUILA", "CONCRELITE", "CONCREMACK", "CONCREMAG", "CONCREMECOL S.A.S", "CONCREMEX S.A.S", "CONCREMOR", "CONCREMOVIL", "CONCRENORTE", "CONCRENORTE CARTAGENA", "CONCRESA", "CONCRESER S.A.S", "CONCRESERVICE", "CONCRESINU", "CONCRET MARK", "CONCRETADORA CIMBRADOS", "CONCRETADORA NORBERTO", "CONCRETADORA OCHOA", "CONCRETADORA OCTAVIO", "CONCRETADORA PISOS", "CONCRETADORA VOCANOME", "CONCRETAR", "CONCRETART", "CONCRETE HOUSE S.A.S", "CONCRETEC/GRAMA", "CONCRETEG", "CONCRETERA A Y C", "CONCRETERA CENTRAL DE CONCRETOS", "CONCRETERA CPK", "CONCRETERA ORGON S.A.S", "CONCRETEX", "CONCRETO", "CONCRETO MR 45 EXPLOMINERALES", "CONCRETO UNICO", "CONCRETO URBANO", "CONCRETO URBANO SAS", "CONCRETOS  UTRACEM", "CONCRETOS .COM S.A.S", "CONCRETOS ANDINOS", "CONCRETOS BARRANQUILLA", "CONCRETOS CARIBE", "CONCRETOS DE CALIDAD", "CONCRETOS DE IBAGUE", "CONCRETOS DE LA COSTA", "CONCRETOS DE VERAGUAS", "CONCRETOS DEL CARIBE", "CONCRETOS DEL MEDITERRANEO", "CONCRETOS DEL NORTE S.A.S", "CONCRETOS DEL ORIENTE", "CONCRETOS DEL SOL", "CONCRETOS EJE", "CONCRETOS EL CAIRO", "CONCRETOS EL RUBI", "CONCRETOS EL ZULIA", "CONCRETOS FLORESTA", "CONCRETOS INDUSTRIALES DE SUCRE", "CONCRETOS MIXER SAS", "CONCRETOS ORGON S.A.S", "CONCRETOS PASSAI", "CONCRETOS PASSAI SAS", "CONCRETOS PREMIUM", "CONCRETOS SAN PIO", "CONCRETOS SERSAR", "CONCRETOS UNO A", "CONCRETOS Y AGREGADOS", "CONCRETOS Y AGREGADOS DEL CARIBE S.A.S", "CONCRETOS Y CONCRETOS", "CONCRETOS Y CONSTRUCCIONES COLOMBIA", "CONCRETOS Y MORTEROS", "CONCRETOS Y PREFABRICADOS DEL CARIBE S.A.S", "CONCRETOS Y TRITURADOS EL ZULIA", "CONCREYM", "CONECO", "CONEXIÓN VIAL (FASE II)", "CONKRETE", "CONSORCIO DOBLE CALZADA", "CONSORCIO GRUPO CONSTRUCTORA", "CONSORCIO PORCE III", "CONSTRUCCIONES  J.R", "CONSTRUCCIONES EL CAIRO S.A.S", "CONSTRUCCIONES SANTA CRUZ", "CONSTRUNET", "CONTEX", "CONVEL S.A", "CONVEL-SAINC", "COPREN", "COVAL CONCRETOS", "CR3 CONSTRUCTORA S A S", "CUBIKO", "CUSEZAR", "D. L. R. FABRICADO EN OBRA", "D.E INGENIERIA", "D.E. INGENIERA Y CONSTRUCCIONES", "DEMO", "DG CONCRETOS", "DOMAT", "DRAGADOS", "DRAMIX", "DRY CONTRUCCIONES", "DSP CONCRETOS", "DUME", "E.D. INGENIERÍA Y CONSTRUCCIONES", "ECOCONCRETOS", "EL DORADO", "ENCONCRELISTO - TOXEMEN", "EQUIPOS Y OBRAS CIVILES", "EXPOMINERALES", "F.T. INGENIERIA LTDA", "FENIX CONSTRUCCIONES", "FORMETACOL S.A.S", "GAMTEC S.A.S", "GISAICO", "GRUPO VISBAL", "HBS CONCRETOS SAS", "HOLCIM COLOMBIA S.A.", "HORMICÓN", "HORMIGON ANDINO", "HORMIGON COLOMBIA", "HORMIGÓN EXPRESS", "HORMIGÓN URBANO S.A.S", "HORMIGONES SANTANDER", "HORMIGOTI", "HORMING", "ICEIN", "INACAR", "INGEKAR LPR", "INGETIERRAS", "INVERSIONES TAYRONA", "INVERSORA FURATENA S.A.S", "ISECEN", "ITALCONCRETOS", "J M K", "JOSE", "JOSEF CONCRETE", "JOSEF CONCRETE’S", "JULIANO G. CARLIER", "JUNTA DE ACCION COMUNAL BETANIA GUAYABAL", "K.M.A", "KONEKO", "LA HACIENDA", "LA PUNTA  (MARIO HUERTAS)", "LABORATORIO FARFAN", "LADRILLERA MELÉNDEZ", "LAGUNA MORANTES", "M.O MILENIUM", "MADE", "MADEBELLO", "MANUFACTURAS DE CEMENTO LTDA", "MAQUICONCRETOS", "MASTER PLAC", "MATERIA GRIS CONCRETOS & CONSTRUCCIONES S.A.S.", "MEGA CONCRETO", "METAL CIVIL", "METROCONCRETO", "METROCONCRETOS S.A", "MEZCLA EN LABORATORIO", "MEZCLADO EN OBRA- IVAN PRIETO", "MEZCLAS INDUSTRIALES", "MHC (MARIO HUERTAS COTES)", "MINE", "MINERALES DEL LLANO", "MIX CONCRETE", "MIX CONCRETOS DE COLOMBIA", "MIXER MOVIL", "MO (MEZCLA EN OBRA)", "MO.LCU", "MOBILE MIXERS", "MOMETRO CABLE LINEA ALEJANDRO ECHAVARRIA (LINEA H )", "MORCON", "MORTEROS DEL CARIBE", "MORTEROS Y CONCRETOS JMK S.A.S.", "MORTEROS Y CONCRETOS SANTA CRUZ", "MO-UIV CONCRETOS", "MOVI DAMAIS", "MYA GROUP", "N.A", "N.A.", "NORMIX S.A.S.", "NUEVO BLOQUE AULAS COLEGIO SANTO DOMINGO", "O SAMANES CAMPESTRE", "OBRA", "OBRA LOCAL SAN MICHEL", "OCAIMA", "ORGON", "P.Y.P", "PAVIMENTAR", "PAVIMENTAR S.A.", "PETREOS DE OCCIDENTE", "PETROINGENIERIA", "PISOS INDUSTRIALES", "PLA", "PLANTA ALTRON", "PLANTA ARIZA", "PLANTA CABI-CORVEZ", "PLANTA CARLOS LLERAS", "PLANTA CHIQUINQUIRA", "PLANTA DE CONCRETO DG", "PLANTA DE CONCRETO EN OBRA", "PLANTA DE CONCRETO MADE", "PLANTA DE CONCRETO METRO CUBICO", "PLANTA DE CONCRETOS CFRO", "PLANTA DE CONCRETOS CIU", "PLANTA DE CONCRETOS VALCON", "PLANTA EL TABLON", "PLANTA FARFAN", "PLANTA FIGALI", "PLANTA FURATENA", "PLANTA IMHOTEP", "PLANTA KONEKO-CORVEZ", "PLANTA MORTEROS CHICAMOCHA", "PLANTA ROCA", "POLIMIX", "PP NORTE COMUNA 50 VEREDA LA VOLCANA COLIMOCHA", "PP NORTE EL PLAYON", "PPK CARTAGENA", "PRE & SUM", "PREFABRICADOS CONCRETODO", "PREFABRICAR Y CONSTRUIR S.A.S", "PREMEXPRESS", "PREMEXPRESS MIRAFLORES", "PREMEXPRESS VACAMONTE", "PREMEZCLADOS DEL ATLÁNTICO", "PREVESA", "PROTYESCON", "PROYECTAR CONSTRUCCION S.A.S", "PULEMIX", "RCD Y AGREGADOS NACIONALES", "REFRIGERACION FASE 2", "RICARDO URIBE", "ROCALES Y CONCRETOS", "ROCAS INGENIEROS", "RUTA CARIBE", "S.L.M CONCRETERA", "SAN MARCOS", "SAN PIO", "SANTA MARIA DE ROBLEDO", "SANTA MONICA REAL", "SEECON S.A.S", "SERVICRETO", "SIKA", "SKEMA", "SLM CONSTRUCCION S.A", "SLM CONSTRUCTORA S.A", "SOLETANCHE BACHY CIMAS", "SOLUCIONES URBANISTICAS", "SUGADA", "SUPER CONCRETOS CONSTRUCCIONES", "TECNOMORTEROS", "TERRIGENOS", "TESIS", "TEXSA", "THEKCA INGENIERIA", "TITAN DEL CARIBE", "TNCC", "TORRE TISCALI", "TOXEMENT", "TRANSCONCRETO LTDA", "TREMIX", "TRITURADORA CONCRETOS LA PIEDRA", "ULTRACEM", "UNIGRAVAS S.A", "UPB BLOQUE 11", "VALCON", "VALORCON", "VELPATI", "VITAA", "VIVES"];
 
-const CONCRETERAS_FAVORITAS = ["CEMEX","OBRA","MO (MEZCLA EN OBRA)"];
+const CONCRETERAS_FAVORITAS = ["CEMEX","ARGOS","OBRA"];
 
 const DIMENSIONES_POR_TIPO = {
   "Concreto": ["4\"x8\"","6\"x12\""],
@@ -336,7 +331,7 @@ const PLANTILLA_HEADERS = ["Codigo_Obra","Servicio_envio","Fecha_recoleccion","E
 
 const AGE_FIELDS = [
   {key:"dia1", label:"Día 1", primary:false},
-  {key:"dia3", label:"Día 3", primary:false},
+  {key:"dia3", label:"Día 3", primary:true},
   {key:"dia7", label:"Día 7", primary:true},
   {key:"dia14", label:"Día 14", primary:true},
   {key:"dia28", label:"Día 28", primary:true},
@@ -362,6 +357,12 @@ function fmtDateHuman(iso){
 }
 function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function highlightMatch(text, query){
+  if(!query) return escapeHtml(text);
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if(idx===-1) return escapeHtml(text);
+  return escapeHtml(text.slice(0,idx)) + '<b>' + escapeHtml(text.slice(idx, idx+query.length)) + '</b>' + escapeHtml(text.slice(idx+query.length));
 }
 function showToast(msg){
   const wrap = document.getElementById('toastWrap');
@@ -426,7 +427,8 @@ const STORE_KEYS = {
   concreteras: 'sgs_cilindros_concreteras_v1',
   mezclas: 'sgs_cilindros_mezclas_v1',
   dimensiones: 'sgs_cilindros_dimensiones_v1',
-  localizaciones: 'sgs_cilindros_localizaciones_v1'
+  localizaciones: 'sgs_cilindros_localizaciones_v1',
+  sync: 'sgs_cilindros_sync_v1'
 };
 
 function loadJSON(key, fallback){
@@ -445,24 +447,27 @@ let state = {
   config: loadJSON(STORE_KEYS.config, {
     codigoObra: 'M-8534 AMBARTE',
     servicioEnvio: 'SI',
-    email: '',
-    telefono: '',
-    contacto: '',
-    observacionesSolicitud: ''
+    email: 'tgresidenteambarte@tierragrata.co',
+    telefono: '316 710 1443',
+    contacto: 'José Manuel Urbina',
+    observacionesSolicitud: '',
+    sheetUrl: ''
   }),
   muestras: loadJSON(STORE_KEYS.muestras, []),
   historial: loadJSON(STORE_KEYS.historial, []),
   concreteras: loadJSON(STORE_KEYS.concreteras, CONCRETERAS_SEED),
   mezclas: loadJSON(STORE_KEYS.mezclas, MEZCLAS_SEED),
   dimensiones: loadJSON(STORE_KEYS.dimensiones, DIMENSIONES_POR_TIPO),
-  localizaciones: loadJSON(STORE_KEYS.localizaciones, [])
+  localizaciones: loadJSON(STORE_KEYS.localizaciones, []),
+  sync: loadJSON(STORE_KEYS.sync, { lastSyncAt: 0, pendingCount: 0, status: 'idle' })
 };
 
 function persist(part){
   const map = {
     config: STORE_KEYS.config, muestras: STORE_KEYS.muestras, historial: STORE_KEYS.historial,
     concreteras: STORE_KEYS.concreteras, mezclas: STORE_KEYS.mezclas,
-    dimensiones: STORE_KEYS.dimensiones, localizaciones: STORE_KEYS.localizaciones
+    dimensiones: STORE_KEYS.dimensiones, localizaciones: STORE_KEYS.localizaciones,
+    sync: STORE_KEYS.sync
   };
   if(part){ saveJSON(map[part], state[part]); }
   else{ Object.keys(map).forEach(k => saveJSON(map[k], state[k])); }
@@ -484,7 +489,13 @@ function blankMuestra(){
     localizacion: '',
     dia1:0, dia3:0, dia7:0, dia14:0, dia28:0, dia56:0, testigo28:0, testigo56:0,
     otroDia:'', cantidadOtroDia:0,
-    observacionesMuestra: ''
+    observacionesMuestra: '',
+    updatedAt: 0,
+    eliminado: false,
+    archivado: false,
+    loteId: '',
+    fechaRecoleccionLote: '',
+    fechaExportLote: ''
   };
 }
 
@@ -504,6 +515,14 @@ function render(){
 }
 
 /* ---------- Configuración ---------- */
+function syncStatusLine(){
+  const s = state.sync;
+  if(!state.config.sheetUrl) return '<div class="card-hint" style="margin-top:0;">Sin Google Sheet conectado — los datos solo viven en este dispositivo.</div>';
+  if(s.status==='syncing') return '<div class="card-hint" style="margin-top:0;">🔄 Sincronizando…</div>';
+  if(s.status==='error') return '<div class="card-hint" style="margin-top:0; color:var(--red);">⚠ Sin conexión con el Sheet. Los cambios se guardaron aquí y se enviarán después.</div>';
+  const when = s.lastSyncAt ? new Date(s.lastSyncAt).toLocaleString('es-CO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : 'nunca';
+  return `<div class="card-hint" style="margin-top:0;">✅ Sincronizado con Google Sheets · última vez: ${when}</div>`;
+}
 function renderConfigCard(){
   const c = state.config;
   return `
@@ -544,6 +563,18 @@ function renderConfigCard(){
         <textarea id="cfgObs" placeholder="Aplica a toda la solicitud">${escapeHtml(c.observacionesSolicitud)}</textarea>
       </label>
       <button class="btn btn-primary btn-block" id="btnSaveConfig">Guardar configuración</button>
+
+      <div class="divider"></div>
+      <div class="lbl" style="margin-bottom:7px;">Sincronización con Google Sheets</div>
+      <p class="card-hint">Pega aquí la URL del Web App de Apps Script (ver instrucciones que te di aparte). Así los datos quedan en la nube y puedes consolidar entre días o dispositivos.</p>
+      <label class="field">
+        <span class="lbl">URL del Web App</span>
+        <input type="text" id="cfgSheetUrl" value="${escapeHtml(c.sheetUrl)}" placeholder="https://script.google.com/macros/s/.../exec">
+      </label>
+      ${syncStatusLine()}
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-outline btn-sm" id="btnSyncNow">🔄 Sincronizar ahora</button>
+      </div>
     </div>
   </details>`;
 }
@@ -592,7 +623,6 @@ function ageBoxHtml(f){
     </div>`;
 }
 function renderFormCard(){
-  const concreterasOptions = [...CONCRETERAS_FAVORITAS, ...state.concreteras.filter(x=>!CONCRETERAS_FAVORITAS.includes(x))];
   const dims = state.dimensiones[draft.tipoMaterial] || [];
   const totalCil = AGE_FIELDS.reduce((s,f)=>s+(Number(draft[f.key])||0),0) + (Number(draft.cantidadOtroDia)||0);
   return `
@@ -623,14 +653,18 @@ function renderFormCard(){
 
     <label class="field">
       <span class="lbl">Localización</span>
-      <input type="text" id="fLocalizacion" list="dlLocalizaciones" value="${escapeHtml(draft.localizacion)}" placeholder="Ej: PILA C2 - A2">
-      <datalist id="dlLocalizaciones">${state.localizaciones.map(l=>`<option value="${escapeHtml(l)}">`).join('')}</datalist>
+      <div class="ac-wrap">
+        <input type="text" id="fLocalizacion" value="${escapeHtml(draft.localizacion)}" placeholder="Ej: PILA C2 - A2" autocomplete="off">
+        <div class="ac-dropdown" id="fLocalizacion_dd"></div>
+      </div>
     </label>
 
     <label class="field">
       <span class="lbl">Concretera</span>
-      <input type="text" id="fConcretera" list="dlConcreteras" value="${escapeHtml(draft.concretera)}" placeholder="Buscar...">
-      <datalist id="dlConcreteras">${concreterasOptions.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
+      <div class="ac-wrap">
+        <input type="text" id="fConcretera" value="${escapeHtml(draft.concretera)}" placeholder="Escribe para buscar entre ${state.concreteras.length}+..." autocomplete="off">
+        <div class="ac-dropdown" id="fConcretera_dd"></div>
+      </div>
       <div class="chipset" style="margin-top:7px;" id="chipsConcreteras">
         ${CONCRETERAS_FAVORITAS.map(c=>`<button type="button" class="chip small ${draft.concretera===c?'active':''}" data-concretera="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('')}
       </div>
@@ -652,24 +686,34 @@ function renderFormCard(){
 
     <label class="field">
       <span class="lbl">Código de mezcla</span>
-      <input type="text" id="fMezcla" list="dlMezclas" value="${escapeHtml(draft.codigoMezcla)}" placeholder="Buscar o escribir uno nuevo...">
-      <datalist id="dlMezclas">${Object.keys(state.mezclas).map(m=>`<option value="${escapeHtml(m)}">`).join('')}</datalist>
+      <div class="ac-wrap">
+        <input type="text" id="fMezcla" value="${escapeHtml(draft.codigoMezcla)}" placeholder="Buscar o escribir uno nuevo..." autocomplete="off">
+        <div class="ac-dropdown" id="fMezcla_dd"></div>
+      </div>
     </label>
 
     <div class="row2">
       <label class="field">
         <span class="lbl">Asentamiento (mm)</span>
         <input type="number" id="fAsentamiento" value="${draft.asentamientoMm}" placeholder="Ej: 150" inputmode="decimal">
+        <div class="card-hint" style="margin:6px 0 0;">¿Lo mediste en pulgadas? <span id="toggleAsentPulgadas" style="text-decoration:underline; cursor:pointer; font-weight:700; color:var(--orange-dark);">conviértelo aquí</span></div>
       </label>
       <label class="field">
         <span class="lbl">Resistencia nominal (MPa)</span>
         <input type="number" id="fResistencia" value="${draft.resistenciaNominalMpa}" placeholder="Ej: 28" inputmode="decimal">
       </label>
     </div>
+    <div class="field" id="asentPulgadasBox" style="display:none; background:var(--orange-soft); border:1.5px dashed var(--orange); border-radius:var(--radius-sm); padding:10px;">
+      <span class="lbl">Asentamiento en pulgadas (")</span>
+      <input type="number" id="fAsentamientoPulgadas" placeholder='Ej: 6' inputmode="decimal" step="0.25">
+      <div class="card-hint" style="margin:6px 0 0;">Se convierte a mm y reemplaza el valor de arriba. El Excel de SGS sigue exportando en mm, esto es solo una ayuda de captura.</div>
+    </div>
 
     <div class="lbl" style="margin-bottom:7px;">Cilindros a ensayar por edad</div>
     <div class="btn-row" style="margin-bottom:10px;">
       <button type="button" class="chip small" id="presetTresTresTres">3-3-3 (7-14-28)</button>
+      <button type="button" class="chip small" id="preset3728">3-7-28</button>
+      <button type="button" class="chip small" id="preset31428">3-14-28</button>
       <button type="button" class="chip small" id="presetTestigo28">Testigo 28 (×3)</button>
       <button type="button" class="chip small" id="presetTestigo2856">Testigo 28+56 (×3+3)</button>
       <button type="button" class="chip small" id="presetClear">Limpiar</button>
@@ -705,13 +749,17 @@ function renderFormCard(){
 }
 
 /* ---------- Resumen ---------- */
+function activeMuestras(){
+  return state.muestras.filter(m=>!m.eliminado && !m.archivado);
+}
 function totalCilindrosDe(m){
   return AGE_FIELDS.reduce((s,f)=>s+(Number(m[f.key])||0),0) + (Number(m.cantidadOtroDia)||0);
 }
 function renderSummaryBar(){
-  const n = state.muestras.length;
-  const totalCil = state.muestras.reduce((s,m)=>s+totalCilindrosDe(m),0);
-  const remisiones = new Set(state.muestras.map(m=>m.numeroRemision).filter(Boolean)).size;
+  const list = activeMuestras();
+  const n = list.length;
+  const totalCil = list.reduce((s,m)=>s+totalCilindrosDe(m),0);
+  const remisiones = new Set(list.map(m=>m.numeroRemision).filter(Boolean)).size;
   return `
   <div class="summary-bar">
     <div class="summary-stat"><div class="n">${n}</div><div class="l">MUESTRAS</div></div>
@@ -727,7 +775,7 @@ function ageTagsFor(m){
   return tags.join('');
 }
 function renderListCard(){
-  const list = [...state.muestras].sort((a,b)=> (a.fechaFundida+a.horaToma).localeCompare(b.fechaFundida+b.horaToma));
+  const list = [...activeMuestras()].sort((a,b)=> (a.fechaFundida+a.horaToma).localeCompare(b.fechaFundida+b.horaToma));
   const items = list.map(m => `
     <div class="muestra-card" data-id="${m.id}">
       <div class="muestra-top">
@@ -758,6 +806,7 @@ function renderListCard(){
 /* ---------- Generar solicitud / exportar ---------- */
 function renderExportCard(){
   const sugerida = suggestFechaRecoleccion(todayISO());
+  const nActivas = activeMuestras().length;
   return `
   <section class="card">
     <h2><span class="dot"></span>Generar solicitud</h2>
@@ -765,28 +814,39 @@ function renderExportCard(){
     <label class="field">
       <span class="lbl">Fecha de recolección</span>
       <input type="date" id="fFechaRecoleccion" value="${sugerida}">
-      <div class="card-hint" style="margin:6px 0 0;">Sugerida: próximo lunes hábil (martes si el lunes es festivo).</div>
+      <div class="card-hint" style="margin:6px 0 0;">Sugerida: próximo lunes hábil (martes si el lunes es festivo) — cámbiala si necesitas programar la recolección otro día.</div>
     </label>
     <div class="btn-row">
-      <button class="btn btn-primary" id="btnDescargarExcel" style="flex:1;" ${state.muestras.length? '' : 'disabled'}>⬇ Descargar Excel (.xlsx)</button>
+      <button class="btn btn-primary" id="btnDescargarExcel" style="flex:1;" ${nActivas? '' : 'disabled'}>⬇ Descargar Excel (.xlsx)</button>
     </div>
     <div class="btn-row" style="margin-top:8px;">
-      <button class="btn btn-outline" id="btnCopiarTSV" style="flex:1;" ${state.muestras.length? '' : 'disabled'}>📋 Copiar filas (pegar en Excel)</button>
+      <button class="btn btn-outline" id="btnCopiarTSV" style="flex:1;" ${nActivas? '' : 'disabled'}>📋 Copiar filas (pegar en Excel)</button>
     </div>
     <div class="btn-row" style="margin-top:8px;">
-      <button class="btn btn-ghost" id="btnArchivarSemana" ${state.muestras.length? '' : 'disabled'}>Marcar semana como enviada y empezar una nueva</button>
+      <button class="btn btn-ghost" id="btnArchivarSemana" ${nActivas? '' : 'disabled'}>Marcar como enviado y empezar un lote nuevo</button>
     </div>
   </section>`;
 }
 
-/* ---------- Historial ---------- */
+/* ---------- Historial (derivado de muestras archivadas por lote) ---------- */
+function getLotesHistorial(){
+  const archivadas = state.muestras.filter(m=>m.archivado && !m.eliminado);
+  const lotes = {};
+  archivadas.forEach(m=>{
+    const key = m.loteId || m.fechaRecoleccionLote;
+    if(!lotes[key]) lotes[key] = { id:key, fechaRecoleccion:m.fechaRecoleccionLote, fechaExport:m.fechaExportLote, items:[] };
+    lotes[key].items.push(m);
+  });
+  return Object.values(lotes).sort((a,b)=> a.fechaExport.localeCompare(b.fechaExport));
+}
 function renderHistorialCard(){
-  if(!state.historial.length) return '';
-  const items = [...state.historial].reverse().map(h => `
+  const lotes = getLotesHistorial();
+  if(!lotes.length) return '';
+  const items = [...lotes].reverse().map(h => `
     <div class="history-item">
       <div>
         <div class="hi-main">Recolección ${fmtDateHuman(h.fechaRecoleccion)}</div>
-        <div class="hi-sub">${h.count} muestras · enviada ${fmtDateHuman(h.fechaExport)}</div>
+        <div class="hi-sub">${h.items.length} muestras · enviada ${fmtDateHuman(h.fechaExport)}</div>
       </div>
       <button class="btn btn-outline btn-sm" data-reexport="${h.id}">Volver a descargar</button>
     </div>`).join('');
@@ -945,6 +1005,38 @@ function syncDraftFromDOM(){
 }
 function rerenderForm(){ syncDraftFromDOM(); render(); }
 
+/* ---------- Autocompletado propio (input + dropdown) ---------- */
+function bindAutocomplete(inputId, ddId, optionsGetter, callbacks){
+  const input = document.getElementById(inputId);
+  const dd = document.getElementById(ddId);
+  if(!input || !dd) return;
+  callbacks = callbacks || {};
+  const maxShow = 40;
+
+  function renderOptions(){
+    const q = input.value.trim();
+    const all = optionsGetter();
+    const matches = q ? all.filter(o=>o.toLowerCase().includes(q.toLowerCase())).slice(0,maxShow) : all.slice(0,maxShow);
+    if(!matches.length){
+      dd.innerHTML = q ? `<div class="ac-empty">Sin coincidencias — se guardará "${escapeHtml(q)}" tal cual escrito.</div>` : `<div class="ac-empty">Empieza a escribir para buscar.</div>`;
+    }else{
+      dd.innerHTML = matches.map(m=>`<div class="ac-option" data-val="${escapeHtml(m)}">${highlightMatch(m,q)}</div>`).join('');
+    }
+    dd.classList.add('open');
+  }
+  input.addEventListener('focus', renderOptions);
+  input.addEventListener('input', renderOptions);
+  input.addEventListener('blur', ()=>{ setTimeout(()=>dd.classList.remove('open'), 180); });
+  dd.addEventListener('mousedown', (e)=>{
+    const opt = e.target.closest('.ac-option');
+    if(!opt) return;
+    e.preventDefault();
+    input.value = opt.dataset.val;
+    dd.classList.remove('open');
+    if(callbacks.onSelect) callbacks.onSelect(opt.dataset.val);
+  });
+}
+
 function autofillFromMezcla(name){
   const info = state.mezclas[name];
   if(!info) return;
@@ -972,8 +1064,92 @@ function learnFromMuestra(m){
 }
 
 /* =========================================================
-   EVENTOS
+   SINCRONIZACIÓN CON GOOGLE SHEETS (Apps Script Web App)
    ========================================================= */
+const SYNC_CONFIG_KEYS = ['codigoObra','servicioEnvio','email','telefono','contacto','observacionesSolicitud'];
+
+function setSyncStatus(status){
+  state.sync.status = status;
+  if(status==='ok') state.sync.lastSyncAt = Date.now();
+  persist('sync');
+}
+
+function mergeMuestras(local, remote){
+  const byId = {};
+  local.forEach(m => byId[m.id] = m);
+  remote.forEach(rm => {
+    const lm = byId[rm.id];
+    if(!lm || Number(rm.updatedAt||0) > Number(lm.updatedAt||0)){
+      byId[rm.id] = rm;
+    }
+  });
+  return Object.values(byId);
+}
+
+async function syncPull(){
+  const url = state.config.sheetUrl;
+  if(!url) return;
+  setSyncStatus('syncing'); render();
+  try{
+    const res = await fetch(url + (url.includes('?')?'&':'?') + '_t=' + Date.now(), {method:'GET', cache:'no-store'});
+    const data = await res.json();
+    if(!data || data.ok===false) throw new Error(data && data.error || 'respuesta inválida');
+    if(Array.isArray(data.muestras)){
+      const normalizados = data.muestras.map(normalizeRemoteMuestra);
+      state.muestras = mergeMuestras(state.muestras, normalizados);
+      persist('muestras');
+    }
+    if(data.config && typeof data.config==='object'){
+      SYNC_CONFIG_KEYS.forEach(k=>{ if(data.config[k]!==undefined) state.config[k] = data.config[k]; });
+      persist('config');
+    }
+    setSyncStatus('ok');
+    showToast('Sincronizado con Google Sheets.');
+    render();
+    // aseguramos que el merge quede reflejado también en el Sheet
+    syncPush(true);
+  }catch(err){
+    console.error('syncPull error', err);
+    setSyncStatus('error');
+    render();
+  }
+}
+
+function normalizeRemoteMuestra(r){
+  const m = { ...blankMuestra(), ...r };
+  ['dia1','dia3','dia7','dia14','dia28','dia56','testigo28','testigo56','cantidadOtroDia','asentamientoMm','resistenciaNominalMpa','updatedAt']
+    .forEach(k=>{ m[k] = r[k]===''||r[k]==null ? (k==='updatedAt'?0:'') : Number(r[k]); });
+  m.eliminado = r.eliminado===true || r.eliminado==='TRUE' || r.eliminado===1 || r.eliminado==='1';
+  m.archivado = r.archivado===true || r.archivado==='TRUE' || r.archivado===1 || r.archivado==='1';
+  m.id = String(r.id);
+  return m;
+}
+
+async function syncPush(silent){
+  const url = state.config.sheetUrl;
+  if(!url) return;
+  if(!silent){ setSyncStatus('syncing'); render(); }
+  try{
+    const payload = {
+      config: Object.fromEntries(SYNC_CONFIG_KEYS.map(k=>[k, state.config[k]])),
+      muestras: state.muestras
+    };
+    const res = await fetch(url, {
+      method:'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(!data || data.ok===false) throw new Error(data && data.error || 'respuesta inválida');
+    setSyncStatus('ok');
+  }catch(err){
+    console.error('syncPush error', err);
+    setSyncStatus('error');
+  }
+  if(!silent) render();
+}
+
+
 function bindEvents(){
   const app = document.getElementById('app');
 
@@ -990,18 +1166,29 @@ function bindEvents(){
   const btnSaveConfig = document.getElementById('btnSaveConfig');
   if(btnSaveConfig){
     btnSaveConfig.addEventListener('click', ()=>{
+      const prevUrl = state.config.sheetUrl;
       state.config = {
         codigoObra: document.getElementById('cfgCodigoObra').value.trim(),
         servicioEnvio: cfgServicio.querySelector('.chip.active')?.dataset.val || 'SI',
         email: document.getElementById('cfgEmail').value.trim(),
         telefono: document.getElementById('cfgTelefono').value.trim(),
         contacto: document.getElementById('cfgContacto').value.trim(),
-        observacionesSolicitud: document.getElementById('cfgObs').value.trim()
+        observacionesSolicitud: document.getElementById('cfgObs').value.trim(),
+        sheetUrl: document.getElementById('cfgSheetUrl').value.trim()
       };
       persist('config');
       showToast('Configuración guardada.');
       render();
       const d = document.getElementById('cfgDetails'); if(d) d.open = true;
+      if(state.config.sheetUrl && state.config.sheetUrl!==prevUrl){ syncPull(); }
+      else { syncPush(); }
+    });
+  }
+  const btnSyncNow = document.getElementById('btnSyncNow');
+  if(btnSyncNow){
+    btnSyncNow.addEventListener('click', ()=>{
+      if(!state.config.sheetUrl){ showToast('Primero pega la URL del Web App.'); return; }
+      syncPull();
     });
   }
 
@@ -1028,13 +1215,47 @@ function bindEvents(){
     btn.addEventListener('click', ()=>{ syncDraftFromDOM(); draft.concretera = btn.dataset.concretera; render(); });
   });
 
-  /* ----- Formulario: mezcla autofill ----- */
+  /* ----- Formulario: autocompletado (concretera, localización, mezcla) ----- */
+  bindAutocomplete('fConcretera', 'fConcretera_dd', ()=>[...CONCRETERAS_FAVORITAS, ...state.concreteras.filter(x=>!CONCRETERAS_FAVORITAS.includes(x))], {
+    onSelect: (val)=>{ syncDraftFromDOM(); draft.concretera = val; render(); }
+  });
+  bindAutocomplete('fLocalizacion', 'fLocalizacion_dd', ()=>state.localizaciones, {
+    onSelect: (val)=>{ syncDraftFromDOM(); draft.localizacion = val; render(); }
+  });
+  bindAutocomplete('fMezcla', 'fMezcla_dd', ()=>Object.keys(state.mezclas), {
+    onSelect: (val)=>{ syncDraftFromDOM(); draft.codigoMezcla = val; autofillFromMezcla(val); render(); }
+  });
+
+  /* ----- Formulario: mezcla autofill si se escribe (sin usar el dropdown) ----- */
   const fMezcla = document.getElementById('fMezcla');
   if(fMezcla){
     fMezcla.addEventListener('change', ()=>{
       syncDraftFromDOM();
       autofillFromMezcla(fMezcla.value.trim());
       render();
+    });
+  }
+
+  /* ----- Formulario: conversor de asentamiento pulgadas -> mm ----- */
+  const toggleAsentPulgadas = document.getElementById('toggleAsentPulgadas');
+  const asentPulgadasBox = document.getElementById('asentPulgadasBox');
+  if(toggleAsentPulgadas && asentPulgadasBox){
+    toggleAsentPulgadas.addEventListener('click', ()=>{
+      const showing = asentPulgadasBox.style.display !== 'none';
+      asentPulgadasBox.style.display = showing ? 'none' : 'block';
+      if(!showing) document.getElementById('fAsentamientoPulgadas').focus();
+    });
+  }
+  const fAsentamientoPulgadas = document.getElementById('fAsentamientoPulgadas');
+  if(fAsentamientoPulgadas){
+    fAsentamientoPulgadas.addEventListener('input', ()=>{
+      const pulgadas = parseFloat(fAsentamientoPulgadas.value);
+      if(!isNaN(pulgadas)){
+        const mm = Math.round(pulgadas * 25.4);
+        const mmInput = document.getElementById('fAsentamiento');
+        mmInput.value = mm;
+        draft.asentamientoMm = mm;
+      }
     });
   }
 
@@ -1060,6 +1281,14 @@ function bindEvents(){
   const presetTresTresTres = document.getElementById('presetTresTresTres');
   if(presetTresTresTres) presetTresTresTres.addEventListener('click', ()=>{
     syncDraftFromDOM(); draft.dia7=3; draft.dia14=3; draft.dia28=3; render();
+  });
+  const preset3728 = document.getElementById('preset3728');
+  if(preset3728) preset3728.addEventListener('click', ()=>{
+    syncDraftFromDOM(); draft.dia3=3; draft.dia7=3; draft.dia28=3; render();
+  });
+  const preset31428 = document.getElementById('preset31428');
+  if(preset31428) preset31428.addEventListener('click', ()=>{
+    syncDraftFromDOM(); draft.dia3=3; draft.dia14=3; draft.dia28=3; render();
   });
   const presetTestigo28 = document.getElementById('presetTestigo28');
   if(presetTestigo28) presetTestigo28.addEventListener('click', ()=>{
@@ -1087,7 +1316,7 @@ function bindEvents(){
       const total = AGE_FIELDS.reduce((s,f)=>s+(Number(draft[f.key])||0),0) + (Number(draft.cantidadOtroDia)||0);
       if(total<=0){ showToast('Agrega al menos un cilindro por edad.'); return; }
 
-      const muestra = { ...draft };
+      const muestra = { ...draft, updatedAt: Date.now() };
       learnFromMuestra(muestra);
 
       if(editingId){
@@ -1102,6 +1331,7 @@ function bindEvents(){
       draft = blankMuestra();
       editingId = null;
       render();
+      syncPush();
     });
   }
   const btnCancelEdit = document.getElementById('btnCancelEdit');
@@ -1121,11 +1351,13 @@ function bindEvents(){
   app.querySelectorAll('[data-del]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       if(!confirm('¿Eliminar esta muestra de la lista?')) return;
-      state.muestras = state.muestras.filter(x=>x.id!==btn.dataset.del);
+      const idx = state.muestras.findIndex(x=>x.id===btn.dataset.del);
+      if(idx>-1){ state.muestras[idx].eliminado = true; state.muestras[idx].updatedAt = Date.now(); }
       persist('muestras');
       if(editingId===btn.dataset.del){ draft=blankMuestra(); editingId=null; }
       showToast('Muestra eliminada.');
       render();
+      syncPush();
     });
   });
 
@@ -1134,7 +1366,7 @@ function bindEvents(){
   if(btnDescargarExcel){
     btnDescargarExcel.addEventListener('click', ()=>{
       const fecha = document.getElementById('fFechaRecoleccion').value || suggestFechaRecoleccion(todayISO());
-      const rows = buildExportRows(fecha, state.muestras);
+      const rows = buildExportRows(fecha, activeMuestras());
       downloadWorkbook(rows, `Solicitud_Cilindros_${state.config.codigoObra.replace(/\s+/g,'_')}_${fecha}.xlsx`);
       showToast('Excel descargado.');
     });
@@ -1143,34 +1375,38 @@ function bindEvents(){
   if(btnCopiarTSV){
     btnCopiarTSV.addEventListener('click', ()=>{
       const fecha = document.getElementById('fFechaRecoleccion').value || suggestFechaRecoleccion(todayISO());
-      const rows = buildExportRows(fecha, state.muestras);
+      const rows = buildExportRows(fecha, activeMuestras());
       copyTSVToClipboard(rows);
     });
   }
   const btnArchivarSemana = document.getElementById('btnArchivarSemana');
   if(btnArchivarSemana){
     btnArchivarSemana.addEventListener('click', ()=>{
-      if(!confirm('Esto archiva la lista actual en el historial y comienza una semana nueva. ¿Continuar?')) return;
+      if(!confirm('Esto marca las muestras activas como enviadas y las mueve al historial. ¿Continuar?')) return;
       const fecha = document.getElementById('fFechaRecoleccion').value || suggestFechaRecoleccion(todayISO());
-      const rows = buildExportRows(fecha, state.muestras);
-      state.historial.push({
-        id: uid(), fechaRecoleccion: fecha, fechaExport: todayISO(),
-        count: state.muestras.length, rows
+      const loteId = uid();
+      const hoy = todayISO();
+      state.muestras.forEach(m=>{
+        if(!m.eliminado && !m.archivado){
+          m.archivado = true; m.loteId = loteId; m.fechaRecoleccionLote = fecha; m.fechaExportLote = hoy;
+          m.updatedAt = Date.now();
+        }
       });
-      state.muestras = [];
-      persist('historial'); persist('muestras');
+      persist('muestras');
       draft = blankMuestra(); editingId = null;
       showToast('Semana archivada. ¡Lista para la siguiente!');
       render();
+      syncPush();
     });
   }
 
   /* ----- Historial: reexportar ----- */
   app.querySelectorAll('[data-reexport]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const h = state.historial.find(x=>x.id===btn.dataset.reexport);
+      const h = getLotesHistorial().find(x=>x.id===btn.dataset.reexport);
       if(!h) return;
-      downloadWorkbook(h.rows, `Solicitud_Cilindros_${state.config.codigoObra.replace(/\s+/g,'_')}_${h.fechaRecoleccion}.xlsx`);
+      const rows = buildExportRows(h.fechaRecoleccion, h.items);
+      downloadWorkbook(rows, `Solicitud_Cilindros_${state.config.codigoObra.replace(/\s+/g,'_')}_${h.fechaRecoleccion}.xlsx`);
       showToast('Excel descargado de nuevo.');
     });
   });
@@ -1196,6 +1432,7 @@ render = function(){
    INIT
    ========================================================= */
 render();
+if(state.config.sheetUrl){ syncPull(); }
 </script>
 </body>
 </html>
