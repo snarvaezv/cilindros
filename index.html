@@ -459,7 +459,7 @@ let state = {
   mezclas: loadJSON(STORE_KEYS.mezclas, MEZCLAS_SEED),
   dimensiones: loadJSON(STORE_KEYS.dimensiones, DIMENSIONES_POR_TIPO),
   localizaciones: loadJSON(STORE_KEYS.localizaciones, []),
-  sync: loadJSON(STORE_KEYS.sync, { lastSyncAt: 0, pendingCount: 0, status: 'idle' })
+  sync: loadJSON(STORE_KEYS.sync, { lastSyncAt: 0, pendingCount: 0, status: 'idle', lastError: '' })
 };
 
 function persist(part){
@@ -485,6 +485,7 @@ function blankMuestra(){
     concretera: CONCRETERAS_FAVORITAS[0],
     codigoMezcla: '',
     asentamientoMm: '',
+    asentamientoPulgadas: '',
     resistenciaNominalMpa: '',
     localizacion: '',
     dia1:0, dia3:0, dia7:0, dia14:0, dia28:0, dia56:0, testigo28:0, testigo56:0,
@@ -519,7 +520,7 @@ function syncStatusLine(){
   const s = state.sync;
   if(!state.config.sheetUrl) return '<div class="card-hint" style="margin-top:0;">Sin Google Sheet conectado — los datos solo viven en este dispositivo.</div>';
   if(s.status==='syncing') return '<div class="card-hint" style="margin-top:0;">🔄 Sincronizando…</div>';
-  if(s.status==='error') return '<div class="card-hint" style="margin-top:0; color:var(--red);">⚠ Sin conexión con el Sheet. Los cambios se guardaron aquí y se enviarán después.</div>';
+  if(s.status==='error') return `<div class="card-hint" style="margin-top:0; color:var(--red);">⚠ ${escapeHtml(s.lastError || 'Sin conexión con el Sheet.')} Los cambios se guardaron aquí y se enviarán después.</div>`;
   const when = s.lastSyncAt ? new Date(s.lastSyncAt).toLocaleString('es-CO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : 'nunca';
   return `<div class="card-hint" style="margin-top:0;">✅ Sincronizado con Google Sheets · última vez: ${when}</div>`;
 }
@@ -604,6 +605,13 @@ function renderCatalogosCard(){
         </div>
         <label class="btn btn-outline btn-sm" for="fileHistorico">Importar</label>
         <input type="file" id="fileHistorico" accept=".xlsx,.xls">
+      </div>
+      <div class="import-row">
+        <div>
+          <div class="ir-text">¿La lista de concreteras se ve corta?</div>
+          <div class="ir-count">Restaura el catálogo completo de fábrica (${CONCRETERAS_SEED.length} concreteras) sin perder las que hayas agregado</div>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btnRestaurarConcreteras">Restaurar</button>
       </div>
     </div>
   </details>`;
@@ -692,21 +700,20 @@ function renderFormCard(){
       </div>
     </label>
 
+    <label class="field">
+      <span class="lbl">Asentamiento en pulgadas (") — opcional</span>
+      <input type="number" id="fAsentamientoPulgadas" value="${draft.asentamientoPulgadas!==undefined && draft.asentamientoPulgadas!==null? draft.asentamientoPulgadas : ''}" placeholder='Ej: 6' inputmode="decimal" step="0.25">
+      <div class="card-hint" style="margin:6px 0 0;">Al escribir aquí, convierte y llena el campo en mm de abajo. El Excel de SGS siempre exporta en mm.</div>
+    </label>
     <div class="row2">
       <label class="field">
         <span class="lbl">Asentamiento (mm)</span>
         <input type="number" id="fAsentamiento" value="${draft.asentamientoMm}" placeholder="Ej: 150" inputmode="decimal">
-        <div class="card-hint" style="margin:6px 0 0;">¿Lo mediste en pulgadas? <span id="toggleAsentPulgadas" style="text-decoration:underline; cursor:pointer; font-weight:700; color:var(--orange-dark);">conviértelo aquí</span></div>
       </label>
       <label class="field">
         <span class="lbl">Resistencia nominal (MPa)</span>
         <input type="number" id="fResistencia" value="${draft.resistenciaNominalMpa}" placeholder="Ej: 28" inputmode="decimal">
       </label>
-    </div>
-    <div class="field" id="asentPulgadasBox" style="display:none; background:var(--orange-soft); border:1.5px dashed var(--orange); border-radius:var(--radius-sm); padding:10px;">
-      <span class="lbl">Asentamiento en pulgadas (")</span>
-      <input type="number" id="fAsentamientoPulgadas" placeholder='Ej: 6' inputmode="decimal" step="0.25">
-      <div class="card-hint" style="margin:6px 0 0;">Se convierte a mm y reemplaza el valor de arriba. El Excel de SGS sigue exportando en mm, esto es solo una ayuda de captura.</div>
     </div>
 
     <div class="lbl" style="margin-bottom:7px;">Cilindros a ensayar por edad</div>
@@ -936,7 +943,10 @@ function handleFileTemplate(file){
           if(v && !dims[tipoCols[ci]].includes(String(v).trim())) dims[tipoCols[ci]].push(String(v).trim());
         });
       }
-      if(concreteras.length){ state.concreteras = Array.from(new Set(concreteras)).sort((a,b)=>a.localeCompare(b)); persist('concreteras'); }
+      if(concreteras.length){
+        state.concreteras = Array.from(new Set([...state.concreteras, ...concreteras])).sort((a,b)=>a.localeCompare(b));
+        persist('concreteras');
+      }
       if(Object.values(dims).some(a=>a.length)){ state.dimensiones = dims; persist('dimensiones'); }
       showToast('Catálogo de la plantilla SGS actualizado.');
       render();
@@ -998,6 +1008,7 @@ function syncDraftFromDOM(){
   draft.concretera = g('fConcretera').value;
   draft.codigoMezcla = g('fMezcla').value;
   draft.asentamientoMm = g('fAsentamiento').value;
+  draft.asentamientoPulgadas = g('fAsentamientoPulgadas').value;
   draft.resistenciaNominalMpa = g('fResistencia').value;
   draft.otroDia = g('fOtroDia').value;
   draft.cantidadOtroDia = g('fCantidadOtroDia').value;
@@ -1068,9 +1079,10 @@ function learnFromMuestra(m){
    ========================================================= */
 const SYNC_CONFIG_KEYS = ['codigoObra','servicioEnvio','email','telefono','contacto','observacionesSolicitud'];
 
-function setSyncStatus(status){
+function setSyncStatus(status, errorMsg){
   state.sync.status = status;
   if(status==='ok') state.sync.lastSyncAt = Date.now();
+  state.sync.lastError = status==='error' ? (errorMsg || 'Error desconocido') : '';
   persist('sync');
 }
 
@@ -1086,13 +1098,85 @@ function mergeMuestras(local, remote){
   return Object.values(byId);
 }
 
+function describeSyncError(err){
+  return (err && err.message) || 'Error desconocido';
+}
+
+/* JSONP: evita el bloqueo de CORS de Apps Script para LECTURAS, cargando
+   la respuesta como un <script> en vez de con fetch(). */
+function jsonp(url, timeoutMs){
+  return new Promise((resolve, reject)=>{
+    const cbName = '__sgsCb_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    const script = document.createElement('script');
+    let done = false;
+    const timer = setTimeout(()=>{
+      if(done) return; done = true; cleanup();
+      reject(new Error('Tiempo de espera agotado contactando el Sheet.'));
+    }, timeoutMs || 15000);
+    function cleanup(){ try{ delete window[cbName]; }catch(e){} script.remove(); clearTimeout(timer); }
+    window[cbName] = (data)=>{ if(done) return; done = true; cleanup(); resolve(data); };
+    script.onerror = ()=>{ if(done) return; done = true; cleanup(); reject(new Error('No se pudo cargar el Web App (revisa la URL).')); };
+    const sep = url.includes('?') ? '&' : '?';
+    script.src = url + sep + 'callback=' + encodeURIComponent(cbName) + '&_t=' + Date.now();
+    document.head.appendChild(script);
+  });
+}
+
+/* Formulario oculto -> iframe oculto: evita el bloqueo de CORS para ESCRITURAS.
+   El Apps Script responde con un <script> que hace postMessage al padre. */
+function postViaHiddenForm(url, payloadObj, timeoutMs){
+  return new Promise((resolve, reject)=>{
+    const reqId = '__sgsReq_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+    const frameName = '__sgsFrame_' + reqId;
+    const iframe = document.createElement('iframe');
+    iframe.name = frameName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = url;
+    form.target = frameName;
+    form.style.display = 'none';
+    form.enctype = 'application/x-www-form-urlencoded';
+
+    const fields = { payload: JSON.stringify(payloadObj), viaForm: '1', reqId: reqId };
+    Object.keys(fields).forEach(name=>{
+      const input = document.createElement('input');
+      input.type = 'hidden'; input.name = name; input.value = fields[name];
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+
+    let done = false;
+    function cleanup(){
+      window.removeEventListener('message', onMessage);
+      clearTimeout(timer);
+      setTimeout(()=>{ form.remove(); iframe.remove(); }, 50);
+    }
+    function onMessage(ev){
+      if(done) return;
+      const data = ev.data;
+      if(data && typeof data==='object' && data.reqId===reqId){
+        done = true; cleanup(); resolve(data);
+      }
+    }
+    window.addEventListener('message', onMessage);
+    const timer = setTimeout(()=>{
+      if(done) return; done = true; cleanup();
+      reject(new Error('Tiempo de espera agotado enviando datos al Sheet.'));
+    }, timeoutMs || 15000);
+
+    form.submit();
+  });
+}
+
 async function syncPull(){
   const url = state.config.sheetUrl;
   if(!url) return;
   setSyncStatus('syncing'); render();
   try{
-    const res = await fetch(url + (url.includes('?')?'&':'?') + '_t=' + Date.now(), {method:'GET', cache:'no-store'});
-    const data = await res.json();
+    const data = await jsonp(url);
     if(!data || data.ok===false) throw new Error(data && data.error || 'respuesta inválida');
     if(Array.isArray(data.muestras)){
       const normalizados = data.muestras.map(normalizeRemoteMuestra);
@@ -1110,7 +1194,7 @@ async function syncPull(){
     syncPush(true);
   }catch(err){
     console.error('syncPull error', err);
-    setSyncStatus('error');
+    setSyncStatus('error', describeSyncError(err));
     render();
   }
 }
@@ -1134,17 +1218,12 @@ async function syncPush(silent){
       config: Object.fromEntries(SYNC_CONFIG_KEYS.map(k=>[k, state.config[k]])),
       muestras: state.muestras
     };
-    const res = await fetch(url, {
-      method:'POST',
-      headers: {'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
+    const data = await postViaHiddenForm(url, payload);
     if(!data || data.ok===false) throw new Error(data && data.error || 'respuesta inválida');
     setSyncStatus('ok');
   }catch(err){
     console.error('syncPush error', err);
-    setSyncStatus('error');
+    setSyncStatus('error', describeSyncError(err));
   }
   if(!silent) render();
 }
@@ -1197,6 +1276,16 @@ function bindEvents(){
   if(fileTemplate) fileTemplate.addEventListener('change', e=>{ if(e.target.files[0]) handleFileTemplate(e.target.files[0]); e.target.value=''; });
   const fileHistorico = document.getElementById('fileHistorico');
   if(fileHistorico) fileHistorico.addEventListener('change', e=>{ if(e.target.files[0]) handleFileHistorico(e.target.files[0]); e.target.value=''; });
+  const btnRestaurarConcreteras = document.getElementById('btnRestaurarConcreteras');
+  if(btnRestaurarConcreteras){
+    btnRestaurarConcreteras.addEventListener('click', ()=>{
+      state.concreteras = Array.from(new Set([...state.concreteras, ...CONCRETERAS_SEED])).sort((a,b)=>a.localeCompare(b));
+      persist('concreteras');
+      showToast(`Catálogo restaurado: ${state.concreteras.length} concreteras.`);
+      render();
+      const d = document.getElementById('catDetails'); if(d) d.open = true;
+    });
+  }
 
   /* ----- Formulario: chips ----- */
   app.querySelectorAll('#chipsTipoMaterial .chip').forEach(btn=>{
@@ -1237,15 +1326,6 @@ function bindEvents(){
   }
 
   /* ----- Formulario: conversor de asentamiento pulgadas -> mm ----- */
-  const toggleAsentPulgadas = document.getElementById('toggleAsentPulgadas');
-  const asentPulgadasBox = document.getElementById('asentPulgadasBox');
-  if(toggleAsentPulgadas && asentPulgadasBox){
-    toggleAsentPulgadas.addEventListener('click', ()=>{
-      const showing = asentPulgadasBox.style.display !== 'none';
-      asentPulgadasBox.style.display = showing ? 'none' : 'block';
-      if(!showing) document.getElementById('fAsentamientoPulgadas').focus();
-    });
-  }
   const fAsentamientoPulgadas = document.getElementById('fAsentamientoPulgadas');
   if(fAsentamientoPulgadas){
     fAsentamientoPulgadas.addEventListener('input', ()=>{
