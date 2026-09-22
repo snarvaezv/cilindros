@@ -277,6 +277,33 @@
   .ac-empty{padding:10px 13px; font-size:12.5px; color:var(--text-muted);}
   .ac-option b{color:var(--orange-dark);}
 
+  /* estado de foto de remisión */
+  .foto-status{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    font-size:12.5px; font-weight:600; color:var(--text-muted);
+    margin:-6px 0 12px; padding:8px 10px; border-radius:var(--radius-sm);
+    background:var(--surface-2); border:1px solid var(--border);
+  }
+  .foto-status a{color:var(--orange-dark); font-weight:700; text-decoration:none;}
+  .foto-status.foto-ok{background:var(--green-soft); border-color:var(--green);}
+  .foto-status.foto-error{background:var(--red-soft); border-color:var(--red); color:var(--red);}
+  .foto-spinner{
+    width:13px; height:13px; border-radius:50%;
+    border:2px solid var(--border); border-top-color:var(--orange);
+    display:inline-block; animation:fotospin .7s linear infinite;
+  }
+  @keyframes fotospin{ to{ transform:rotate(360deg); } }
+
+  .btn-camera-frame{
+    display:inline-flex; align-items:center; justify-content:center; flex:none;
+    width:42px; height:42px;
+    border:1.5px solid var(--border); border-radius:var(--radius-sm);
+    background:var(--surface); color:var(--text-muted); cursor:pointer;
+  }
+  .btn-camera-frame:hover{ border-color:var(--orange); color:var(--orange-dark); }
+  .btn-camera-frame.has-photo{ border-color:var(--green); color:var(--green); background:var(--green-soft); }
+  .btn-camera-frame svg{ width:20px; height:20px; }
+
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
   }
@@ -502,12 +529,15 @@ function blankMuestra(){
     archivado: false,
     loteId: '',
     fechaRecoleccionLote: '',
-    fechaExportLote: ''
+    fechaExportLote: '',
+    fotoRemisionUrl: ''
   };
 }
 
 let draft = blankMuestra();
 let editingId = null;
+let fotoUploadStatus = 'idle'; // 'idle' | 'uploading' | 'ok' | 'error'
+let fotoUploadError = '';
 
 /* =========================================================
    RENDER: shell
@@ -636,12 +666,44 @@ function ageBoxHtml(f){
       </div>
     </div>`;
 }
+function cameraIconSvg(size){
+  const s = size || 14;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="${s}" height="${s}" style="vertical-align:-2px; flex:none;">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+    <circle cx="12" cy="13" r="4"></circle>
+  </svg>`;
+}
+function renderFotoRemisionBlock(){
+  if(fotoUploadStatus === 'uploading'){
+    return `<div class="foto-status"><span class="foto-spinner"></span> Subiendo foto de la remisión…</div>`;
+  }
+  if(fotoUploadStatus === 'error'){
+    return `<div class="foto-status foto-error">⚠ ${escapeHtml(fotoUploadError||'No se pudo subir la foto.')}
+      <button type="button" class="btn btn-outline btn-sm" id="btnReintentarFoto" style="margin-left:6px;">Reintentar</button></div>`;
+  }
+  if(draft.fotoRemisionUrl){
+    return `<div class="foto-status foto-ok">
+      <a href="${escapeHtml(draft.fotoRemisionUrl)}" target="_blank" rel="noopener">${cameraIconSvg(14)} Ver foto de la remisión</a>
+      <button type="button" class="icon-btn danger" id="btnQuitarFoto" title="Quitar foto">🗑</button>
+    </div>`;
+  }
+  return '';
+}
 function renderFormCard(){
   const dims = state.dimensiones[draft.tipoMaterial] || [];
   const totalCil = AGE_FIELDS.reduce((s,f)=>s+(Number(draft[f.key])||0),0) + (Number(draft.cantidadOtroDia)||0);
   return `
   <section class="card">
-    <h2><span class="dot"></span>${editingId? 'Editar muestra' : 'Registrar muestra'}</h2>
+    <h2 style="justify-content:space-between;">
+      <span style="display:flex; align-items:center; gap:8px;"><span class="dot"></span>${editingId? 'Editar muestra' : 'Registrar muestra'}</span>
+      <button type="button" class="btn-camera-frame${draft.fotoRemisionUrl? ' has-photo':''}" id="btnFotoRemision" title="Foto de la remisión">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+      </button>
+    </h2>
+    <input type="file" id="fileFotoRemision" accept="image/*" capture="environment" style="display:none;">
 
     <div class="row2">
       <label class="field">
@@ -653,6 +715,7 @@ function renderFormCard(){
         <input type="text" id="fRemision" value="${escapeHtml(draft.numeroRemision)}" placeholder="Ej: FB250000091664">
       </label>
     </div>
+    ${renderFotoRemisionBlock()}
 
     <div class="row2">
       <label class="field">
@@ -668,7 +731,7 @@ function renderFormCard(){
     <label class="field">
       <span class="lbl">Localización</span>
       <div class="ac-wrap">
-        <input type="text" id="fLocalizacion" value="${escapeHtml(draft.localizacion)}" placeholder="Ej: PILA C2 - A2" autocomplete="off">
+        <input type="text" id="fLocalizacion" value="${escapeHtml(draft.localizacion)}" placeholder="Ej: PILA C2, A2 NIVEL XX" autocomplete="off">
         <div class="ac-dropdown" id="fLocalizacion_dd"></div>
       </div>
     </label>
@@ -806,6 +869,7 @@ function renderListCard(){
         <span class="tag">Asent. ${escapeHtml(String(m.asentamientoMm||'-'))} mm</span>
         <span class="tag">${escapeHtml(String(m.resistenciaNominalMpa||'-'))} MPa</span>
         <span class="tag">${escapeHtml(m.numeroRemision||'sin remisión')}</span>
+        ${m.fotoRemisionUrl? `<a href="${escapeHtml(m.fotoRemisionUrl)}" target="_blank" rel="noopener" class="tag qty">${cameraIconSvg(12)} Ver remisión</a>` : ''}
         ${ageTagsFor(m)}
       </div>
     </div>`).join('');
@@ -1312,6 +1376,54 @@ async function fetchPostJson(url, payloadObj, timeoutMs){
   } finally { clearTimeout(timer); }
 }
 
+/* =========================================================
+   FOTO DE LA REMISIÓN: comprimir en el navegador y subir a Drive
+   (misma técnica de envío que usa la sincronización, para esquivar CORS)
+   ========================================================= */
+function compressImageFile(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Archivo de imagen inválido.'));
+      img.onload = () => {
+        let { width, height } = img;
+        const max = maxDim || 1600;
+        if(width > max || height > max){
+          if(width > height){ height = Math.round(height * max/width); width = max; }
+          else { width = Math.round(width * max/height); height = max; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality || 0.75));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadFotoRemision(dataUrl, fileName){
+  const url = state.config.sheetUrl;
+  if(!url) throw new Error('Configura primero la URL del Web App en Configuración.');
+  const commaIdx = dataUrl.indexOf(',');
+  const mimeType = dataUrl.slice(5, commaIdx).split(';')[0] || 'image/jpeg';
+  const base64 = dataUrl.slice(commaIdx+1);
+  const payload = { action:'uploadPhoto', fileData: base64, fileName: fileName || ('remision_'+Date.now()+'.jpg'), mimeType };
+  let data, lastErr;
+  try{
+    data = await postViaHiddenForm(url, payload, 8000);
+  }catch(err){
+    lastErr = err;
+    try{ data = await fetchPostJson(url, payload, 12000); }
+    catch(err2){ lastErr = err2; }
+  }
+  if(!data || data.ok===false) throw new Error((data&&data.error) || (lastErr&&lastErr.message) || 'No se pudo subir la foto.');
+  return data.url;
+}
+
 async function syncPull(){
   const url = state.config.sheetUrl;
   if(!url) return;
@@ -1482,6 +1594,51 @@ function bindEvents(){
     });
   }
 
+  /* ----- Formulario: foto de la remisión ----- */
+  const btnFotoRemision = document.getElementById('btnFotoRemision');
+  const fileFotoRemision = document.getElementById('fileFotoRemision');
+  if(btnFotoRemision && fileFotoRemision){
+    btnFotoRemision.addEventListener('click', ()=>{ fileFotoRemision.click(); });
+    fileFotoRemision.addEventListener('change', async ()=>{
+      const file = fileFotoRemision.files[0];
+      fileFotoRemision.value = '';
+      if(!file) return;
+      syncDraftFromDOM();
+      fotoUploadStatus = 'uploading'; fotoUploadError = '';
+      render();
+      try{
+        const dataUrl = await compressImageFile(file, 1600, 0.75);
+        const url = await uploadFotoRemision(dataUrl, file.name);
+        draft.fotoRemisionUrl = url;
+        fotoUploadStatus = 'ok';
+        showToast('Foto de la remisión subida.');
+      }catch(err){
+        console.error('uploadFotoRemision error', err);
+        fotoUploadStatus = 'error';
+        fotoUploadError = err.message || 'Error desconocido';
+      }
+      render();
+    });
+  }
+  const btnQuitarFoto = document.getElementById('btnQuitarFoto');
+  if(btnQuitarFoto){
+    btnQuitarFoto.addEventListener('click', ()=>{
+      syncDraftFromDOM();
+      draft.fotoRemisionUrl = '';
+      fotoUploadStatus = 'idle';
+      render();
+    });
+  }
+  const btnReintentarFoto = document.getElementById('btnReintentarFoto');
+  if(btnReintentarFoto){
+    btnReintentarFoto.addEventListener('click', ()=>{
+      fotoUploadStatus = 'idle'; fotoUploadError = '';
+      render();
+      const input = document.getElementById('fileFotoRemision');
+      if(input) input.click();
+    });
+  }
+
   /* ----- Formulario: conversor de asentamiento pulgadas -> mm ----- */
   const fAsentamientoPulgadas = document.getElementById('fAsentamientoPulgadas');
   if(fAsentamientoPulgadas){
@@ -1567,12 +1724,15 @@ function bindEvents(){
       persist('muestras');
       draft = blankMuestra();
       editingId = null;
+      fotoUploadStatus = 'idle'; fotoUploadError = '';
       render();
       syncPush();
     });
   }
   const btnCancelEdit = document.getElementById('btnCancelEdit');
-  if(btnCancelEdit) btnCancelEdit.addEventListener('click', ()=>{ draft = blankMuestra(); editingId=null; render(); });
+  if(btnCancelEdit) btnCancelEdit.addEventListener('click', ()=>{
+    draft = blankMuestra(); editingId=null; fotoUploadStatus='idle'; fotoUploadError=''; render();
+  });
 
   /* ----- Lista: editar / eliminar ----- */
   app.querySelectorAll('[data-edit]').forEach(btn=>{
@@ -1581,6 +1741,8 @@ function bindEvents(){
       if(!m) return;
       draft = { ...m };
       editingId = m.id;
+      fotoUploadStatus = m.fotoRemisionUrl ? 'ok' : 'idle';
+      fotoUploadError = '';
       render();
       window.scrollTo({top:0, behavior:'smooth'});
     });
@@ -1639,6 +1801,7 @@ function bindEvents(){
       });
       persist('muestras');
       draft = blankMuestra(); editingId = null;
+      fotoUploadStatus = 'idle'; fotoUploadError = '';
       showToast('Semana archivada. ¡Lista para la siguiente!');
       render();
       syncPush();
