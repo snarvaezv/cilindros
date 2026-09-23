@@ -203,6 +203,16 @@
     padding:3px 8px; font-size:11.5px; font-weight:600; color:var(--text);
   }
   .tag.qty{background:var(--green-soft); border-color:var(--green); color:var(--green);}
+  .tag.urgent{background:var(--orange-soft); border-color:var(--orange); color:var(--orange-dark);}
+
+  .solicitud-group{
+    border:1.5px solid var(--border); border-radius:var(--radius-sm);
+    padding:12px; margin-bottom:10px; background:var(--surface-2);
+  }
+  .solicitud-group-header{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    margin-bottom:9px; font-size:14px;
+  }
   .muestra-actions{display:flex; gap:4px; flex:none;}
   .icon-btn{
     border:none; background:transparent; cursor:pointer; font-size:16px;
@@ -521,6 +531,7 @@ function blankMuestra(){
     asentamientoPulgadas: '',
     resistenciaNominalMpa: '',
     localizacion: '',
+    fechaRecoleccion: suggestFechaRecoleccion(todayISO()),
     dia1:0, dia3:0, dia7:0, dia14:0, dia28:0, dia56:0, testigo28:0, testigo56:0,
     otroDia:'', cantidadOtroDia:0,
     observacionesMuestra: '',
@@ -737,6 +748,16 @@ function renderFormCard(){
     </label>
 
     <label class="field">
+      <span class="lbl">Fecha de recolección de esta muestra</span>
+      <input type="date" id="fFechaRecoleccionMuestra" value="${draft.fechaRecoleccion}">
+      <div class="card-hint" style="margin:6px 0 0;">
+        ${draft.fechaRecoleccion === suggestFechaRecoleccion(todayISO())
+          ? 'Sugerida: próximo lunes hábil, igual que el resto del lote.'
+          : '<b style="color:var(--orange-dark);">⚡ Distinta al resto del lote</b> — se recogerá aparte.'}
+      </div>
+    </label>
+
+    <label class="field">
       <span class="lbl">Concretera</span>
       <div class="ac-wrap">
         <input type="text" id="fConcretera" value="${escapeHtml(draft.concretera)}" placeholder="Escribe para buscar entre ${state.concreteras.length}+..." autocomplete="off">
@@ -865,6 +886,7 @@ function renderListCard(){
         </div>
       </div>
       <div class="muestra-tags">
+        <span class="tag ${m.fechaRecoleccion !== suggestFechaRecoleccion(todayISO()) ? 'urgent' : ''}">→ ${fmtDateHuman(m.fechaRecoleccion)}</span>
         <span class="tag">${escapeHtml(m.concretera||'-')}</span>
         <span class="tag">Asent. ${escapeHtml(String(m.asentamientoMm||'-'))} mm</span>
         <span class="tag">${escapeHtml(String(m.resistenciaNominalMpa||'-'))} MPa</span>
@@ -881,26 +903,48 @@ function renderListCard(){
 }
 
 /* ---------- Generar solicitud / exportar ---------- */
+function fechaRecoleccionSummary(list){
+  const counts = {};
+  list.forEach(m=>{ const f = m.fechaRecoleccion || 'sin fecha'; counts[f] = (counts[f]||0)+1; });
+  const fechas = Object.keys(counts).sort();
+  return fechas.map(f => `${counts[f]} muestra${counts[f]>1?'s':''} → ${f==='sin fecha'?'sin fecha':fmtDateHuman(f)}`);
+}
+function groupActivasByFecha(){
+  const groups = {};
+  activeMuestras().forEach(m=>{
+    const f = m.fechaRecoleccion || 'sin-fecha';
+    if(!groups[f]) groups[f] = [];
+    groups[f].push(m);
+  });
+  return Object.keys(groups).sort().map(f => ({ fecha:f, items:groups[f] }));
+}
 function renderExportCard(){
-  const sugerida = suggestFechaRecoleccion(todayISO());
+  const grupos = groupActivasByFecha();
   const nActivas = activeMuestras().length;
+  const sugerida = suggestFechaRecoleccion(todayISO());
   return `
   <section class="card">
     <h2><span class="dot"></span>Generar solicitud</h2>
-    <p class="card-hint">Genera el Excel con el mismo formato de la plantilla SGS, listo para copiar o enviar.</p>
-    <label class="field">
-      <span class="lbl">Fecha de recolección</span>
-      <input type="date" id="fFechaRecoleccion" value="${sugerida}">
-      <div class="card-hint" style="margin:6px 0 0;">Sugerida: próximo lunes hábil (martes si el lunes es festivo) — cámbiala si necesitas programar la recolección otro día.</div>
-    </label>
-    <div class="btn-row">
-      <button class="btn btn-primary" id="btnDescargarExcel" style="flex:1;" ${nActivas? '' : 'disabled'}>⬇ Descargar Excel (.xlsx)</button>
-    </div>
-    <div class="btn-row" style="margin-top:8px;">
-      <button class="btn btn-outline" id="btnCopiarTSV" style="flex:1;" ${nActivas? '' : 'disabled'}>📋 Copiar filas (pegar en Excel)</button>
-    </div>
-    <div class="btn-row" style="margin-top:8px;">
-      <button class="btn btn-ghost" id="btnArchivarSemana" ${nActivas? '' : 'disabled'}>Marcar como enviado y empezar un lote nuevo</button>
+    <p class="card-hint">La plataforma de SGS exige un Excel independiente por cada fecha de recolección — aquí sale uno listo por cada fecha que hayas usado.</p>
+    ${!grupos.length ? `<p class="card-hint" style="margin:0;">Aún no hay muestras activas.</p>` : grupos.map(g => `
+      <div class="solicitud-group">
+        <div class="solicitud-group-header">
+          <strong>${g.fecha==='sin-fecha'? 'Sin fecha asignada' : fmtDateHuman(g.fecha)}</strong>
+          <span class="badge">${g.items.length} muestra${g.items.length>1?'s':''}</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" data-descargar-fecha="${g.fecha}" style="flex:1;">⬇ Descargar Excel</button>
+          <button class="btn btn-outline btn-sm" data-copiar-fecha="${g.fecha}">📋 Copiar filas</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" data-archivar-fecha="${g.fecha}" style="margin-top:4px;">Marcar como enviado</button>
+      </div>
+    `).join('')}
+    <div class="divider"></div>
+    <div class="lbl" style="margin-bottom:7px;">Ajuste rápido (opcional)</div>
+    <p class="card-hint">Si varias muestras quedaron con fechas distintas y quieres unificarlas, elige una fecha y aplícala a todas las activas.</p>
+    <div class="row2">
+      <input type="date" id="fFechaMasiva" value="${sugerida}">
+      <button class="btn btn-outline btn-sm" id="btnAplicarFechaMasiva" ${nActivas? '' : 'disabled'}>Aplicar a todas</button>
     </div>
   </section>`;
 }
@@ -910,8 +954,8 @@ function getLotesHistorial(){
   const archivadas = state.muestras.filter(m=>m.archivado && !m.eliminado);
   const lotes = {};
   archivadas.forEach(m=>{
-    const key = m.loteId || m.fechaRecoleccionLote;
-    if(!lotes[key]) lotes[key] = { id:key, fechaRecoleccion:m.fechaRecoleccionLote, fechaExport:m.fechaExportLote, items:[] };
+    const key = m.loteId || m.fechaExportLote;
+    if(!lotes[key]) lotes[key] = { id:key, fechaExport:m.fechaExportLote, items:[] };
     lotes[key].items.push(m);
   });
   return Object.values(lotes).sort((a,b)=> a.fechaExport.localeCompare(b.fechaExport));
@@ -922,8 +966,8 @@ function renderHistorialCard(){
   const items = [...lotes].reverse().map(h => `
     <div class="history-item">
       <div>
-        <div class="hi-main">Recolección ${fmtDateHuman(h.fechaRecoleccion)}</div>
-        <div class="hi-sub">${h.items.length} muestras · enviada ${fmtDateHuman(h.fechaExport)}</div>
+        <div class="hi-main">Enviada ${fmtDateHuman(h.fechaExport)} · ${h.items.length} muestras</div>
+        <div class="hi-sub">${fechaRecoleccionSummary(h.items).join(' · ')}</div>
       </div>
       <button class="btn btn-outline btn-sm" data-reexport="${h.id}">Volver a descargar</button>
     </div>`).join('');
@@ -943,12 +987,12 @@ function renderHistorialCard(){
 function numOrBlank(v){ const n=Number(v); return (n && n>0) ? n : ''; }
 function fmtDateDMY(iso){ if(!iso) return ''; const d=parseISO(iso); return pad2(d.getDate())+'/'+pad2(d.getMonth()+1)+'/'+d.getFullYear(); }
 
-function buildExportRows(fechaRecoleccionISO, list){
+function buildExportRows(list){
   const c = state.config;
   const rows = [PLANTILLA_HEADERS];
   list.forEach(m=>{
     rows.push([
-      c.codigoObra, c.servicioEnvio, fmtDateDMY(fechaRecoleccionISO), c.email, c.telefono, c.contacto, c.observacionesSolicitud,
+      c.codigoObra, c.servicioEnvio, fmtDateDMY(m.fechaRecoleccion), c.email, c.telefono, c.contacto, c.observacionesSolicitud,
       m.numeroMuestra, fmtDateDMY(m.fechaFundida), m.horaToma, m.tipoMaterial, m.codigoDimension, m.numeroRemision,
       m.concretera, m.codigoMezcla, numOrBlank(m.asentamientoMm), numOrBlank(m.resistenciaNominalMpa), m.localizacion,
       numOrBlank(m.dia1), numOrBlank(m.dia3), numOrBlank(m.dia7), numOrBlank(m.dia14), numOrBlank(m.dia28), numOrBlank(m.dia56),
@@ -984,7 +1028,7 @@ function downloadWorkbook(rows, filename){
 const PLANTILLA_COL_LETTERS = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R",
   "S","T","U","V","W","X","Y","Z","AA","AB","AC"];
 const PLANTILLA_COL_STYLES  = [2,3,4,2,6,2,2,3,4,22,3,3,7,3,3,7,20,9,11,7,7,7,7,7,7,7,7,7,2];
-const PLANTILLA_COL_KINDS   = ["text","text","date","text","numeric","text","text","text","date","text",
+const PLANTILLA_COL_KINDS   = ["text","text","date","text","numeric","text","text","text","date","time",
   "text","text","text","text","text","numeric","numeric","text",
   "numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","numeric","text"];
 
@@ -993,6 +1037,13 @@ function excelSerialDate(isoDateStr){
   const d = parseISO(isoDateStr);
   const epoch = new Date(1899,11,30);
   return Math.round((d - epoch) / 86400000);
+}
+function excelSerialTime(hhmmStr){
+  if(!hhmmStr) return '';
+  const m = /^(\d{1,2}):(\d{2})/.exec(hhmmStr);
+  if(!m) return '';
+  const hours = Number(m[1]), minutes = Number(m[2]);
+  return Math.round(((hours*3600 + minutes*60) / 86400) * 1e10) / 1e10;
 }
 function escapeXml(s){
   return String(s==null?'':s)
@@ -1023,14 +1074,17 @@ function buildPlantillaRowXml(rowIndex, values){
     }else if(kind === 'date'){
       const serial = excelSerialDate(raw);
       cells += serial===''? `<c r="${ref}" s="${style}"/>` : `<c r="${ref}" s="${style}"><v>${serial}</v></c>`;
+    }else if(kind === 'time'){
+      const serial = excelSerialTime(raw);
+      cells += serial===''? `<c r="${ref}" s="${style}"/>` : `<c r="${ref}" s="${style}"><v>${serial}</v></c>`;
     }
   }
   return `<row r="${rowIndex}" spans="1:31" x14ac:dyDescent="0.25">${cells}</row>`;
 }
 
-function muestraToPlantillaRow(config, fechaRecoleccionISO, m){
+function muestraToPlantillaRow(config, m){
   return [
-    config.codigoObra, config.servicioEnvio, fechaRecoleccionISO, config.email,
+    config.codigoObra, config.servicioEnvio, m.fechaRecoleccion, config.email,
     (config.telefono||'').replace(/\D/g,''), config.contacto, config.observacionesSolicitud,
     m.numeroMuestra, m.fechaFundida, m.horaToma, m.tipoMaterial, m.codigoDimension, m.numeroRemision,
     m.concretera, m.codigoMezcla, numOrBlank(m.asentamientoMm), numOrBlank(m.resistenciaNominalMpa), m.localizacion,
@@ -1039,11 +1093,11 @@ function muestraToPlantillaRow(config, fechaRecoleccionISO, m){
   ];
 }
 
-async function generarExcelDesdePlantilla(fechaRecoleccionISO, list){
+async function generarExcelDesdePlantilla(list){
   if(typeof JSZip === 'undefined'){
     throw new Error('No se pudo cargar el generador de Excel (sin conexión).');
   }
-  const rowsValues = list.map(m => muestraToPlantillaRow(state.config, fechaRecoleccionISO, m));
+  const rowsValues = list.map(m => muestraToPlantillaRow(state.config, m));
 
   const bytes = base64ToUint8Array(PLANTILLA_TEMPLATE_B64);
   const zip = await JSZip.loadAsync(bytes);
@@ -1187,6 +1241,7 @@ function syncDraftFromDOM(){
   draft.fechaFundida = g('fFecha').value || todayISO();
   draft.horaToma = g('fHora').value || nowHHMM();
   draft.localizacion = g('fLocalizacion').value;
+  draft.fechaRecoleccion = g('fFechaRecoleccionMuestra').value || suggestFechaRecoleccion(todayISO());
   draft.concretera = g('fConcretera').value;
   draft.codigoMezcla = g('fMezcla').value;
   draft.asentamientoMm = g('fAsentamiento').value;
@@ -1760,49 +1815,64 @@ function bindEvents(){
     });
   });
 
-  /* ----- Exportar ----- */
-  const btnDescargarExcel = document.getElementById('btnDescargarExcel');
-  if(btnDescargarExcel){
-    btnDescargarExcel.addEventListener('click', async ()=>{
-      const fecha = document.getElementById('fFechaRecoleccion').value || suggestFechaRecoleccion(todayISO());
-      btnDescargarExcel.disabled = true;
+  /* ----- Exportar, por grupo de fecha ----- */
+  function itemsParaFecha(fecha){
+    return activeMuestras().filter(m => (m.fechaRecoleccion || 'sin-fecha') === fecha);
+  }
+  app.querySelectorAll('[data-descargar-fecha]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const fecha = btn.dataset.descargarFecha;
+      const items = itemsParaFecha(fecha);
+      if(!items.length) return;
+      btn.disabled = true;
       try{
-        const blob = await generarExcelDesdePlantilla(fecha, activeMuestras());
+        const blob = await generarExcelDesdePlantilla(items);
         downloadBlob(blob, `Solicitud_Cilindros_${state.config.codigoObra.replace(/\s+/g,'_')}_${fecha}.xlsx`);
         showToast('Excel descargado (formato oficial SGS).');
       }catch(err){
         console.error('generarExcelDesdePlantilla error', err);
         showToast('No se pudo generar el Excel: ' + (err.message || 'error desconocido'));
       }finally{
-        btnDescargarExcel.disabled = false;
+        btn.disabled = false;
       }
     });
-  }
-  const btnCopiarTSV = document.getElementById('btnCopiarTSV');
-  if(btnCopiarTSV){
-    btnCopiarTSV.addEventListener('click', ()=>{
-      const fecha = document.getElementById('fFechaRecoleccion').value || suggestFechaRecoleccion(todayISO());
-      const rows = buildExportRows(fecha, activeMuestras());
-      copyTSVToClipboard(rows);
+  });
+  app.querySelectorAll('[data-copiar-fecha]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const items = itemsParaFecha(btn.dataset.copiarFecha);
+      if(!items.length) return;
+      copyTSVToClipboard(buildExportRows(items));
     });
-  }
-  const btnArchivarSemana = document.getElementById('btnArchivarSemana');
-  if(btnArchivarSemana){
-    btnArchivarSemana.addEventListener('click', ()=>{
-      if(!confirm('Esto marca las muestras activas como enviadas y las mueve al historial. ¿Continuar?')) return;
-      const fecha = document.getElementById('fFechaRecoleccion').value || suggestFechaRecoleccion(todayISO());
+  });
+  app.querySelectorAll('[data-archivar-fecha]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const fecha = btn.dataset.archivarFecha;
+      const items = itemsParaFecha(fecha);
+      if(!items.length) return;
+      if(!confirm(`Esto marca ${items.length} muestra(s) de esta fecha como enviadas. ¿Continuar?`)) return;
       const loteId = uid();
       const hoy = todayISO();
+      const ids = new Set(items.map(m=>m.id));
       state.muestras.forEach(m=>{
-        if(!m.eliminado && !m.archivado){
-          m.archivado = true; m.loteId = loteId; m.fechaRecoleccionLote = fecha; m.fechaExportLote = hoy;
-          m.updatedAt = Date.now();
-        }
+        if(ids.has(m.id)){ m.archivado = true; m.loteId = loteId; m.fechaExportLote = hoy; m.updatedAt = Date.now(); }
       });
       persist('muestras');
-      draft = blankMuestra(); editingId = null;
-      fotoUploadStatus = 'idle'; fotoUploadError = '';
-      showToast('Semana archivada. ¡Lista para la siguiente!');
+      showToast('Enviada. ¡Lista para la siguiente!');
+      render();
+      syncPush();
+    });
+  });
+  const btnAplicarFechaMasiva = document.getElementById('btnAplicarFechaMasiva');
+  if(btnAplicarFechaMasiva){
+    btnAplicarFechaMasiva.addEventListener('click', ()=>{
+      const fecha = document.getElementById('fFechaMasiva').value;
+      if(!fecha) return;
+      let n = 0;
+      state.muestras.forEach(m=>{
+        if(!m.eliminado && !m.archivado){ m.fechaRecoleccion = fecha; m.updatedAt = Date.now(); n++; }
+      });
+      persist('muestras');
+      showToast(`Fecha aplicada a ${n} muestra${n===1?'':'s'}.`);
       render();
       syncPush();
     });
@@ -1814,8 +1884,8 @@ function bindEvents(){
       const h = getLotesHistorial().find(x=>x.id===btn.dataset.reexport);
       if(!h) return;
       try{
-        const blob = await generarExcelDesdePlantilla(h.fechaRecoleccion, h.items);
-        downloadBlob(blob, `Solicitud_Cilindros_${state.config.codigoObra.replace(/\s+/g,'_')}_${h.fechaRecoleccion}.xlsx`);
+        const blob = await generarExcelDesdePlantilla(h.items);
+        downloadBlob(blob, `Solicitud_Cilindros_${state.config.codigoObra.replace(/\s+/g,'_')}_${h.fechaExport}.xlsx`);
         showToast('Excel descargado de nuevo.');
       }catch(err){
         console.error('reexport error', err);
