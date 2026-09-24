@@ -808,11 +808,12 @@ function renderFormCard(){
 
     <div class="lbl" style="margin-bottom:7px;">Cilindros a ensayar por edad</div>
     <div class="btn-row" style="margin-bottom:10px;">
+      <button type="button" class="chip small" id="preset728">3-3 (7-28)</button>
       <button type="button" class="chip small" id="presetTresTresTres">3-3-3 (7-14-28)</button>
-      <button type="button" class="chip small" id="preset3728">3-7-28</button>
-      <button type="button" class="chip small" id="preset31428">3-14-28</button>
-      <button type="button" class="chip small" id="presetTestigo28">Testigo 28 (×3)</button>
-      <button type="button" class="chip small" id="presetTestigo2856">Testigo 28+56 (×3+3)</button>
+      <button type="button" class="chip small" id="preset3728">3-3-3 (3-7-28)</button>
+      <button type="button" class="chip small" id="preset31428">3-3-3 (3-14-28)</button>
+      <button type="button" class="chip small" id="presetTestigo28">Fallo x 3 (28)</button>
+      <button type="button" class="chip small" id="presetTestigo2856">Testigos 3 (56)</button>
       <button type="button" class="chip small" id="presetClear">Limpiar</button>
     </div>
     <div class="age-grid" id="ageGrid">
@@ -1739,13 +1740,17 @@ function bindEvents(){
   if(preset31428) preset31428.addEventListener('click', ()=>{
     syncDraftFromDOM(); draft.dia3=3; draft.dia14=3; draft.dia28=3; render();
   });
+  const preset728 = document.getElementById('preset728');
+  if(preset728) preset728.addEventListener('click', ()=>{
+    syncDraftFromDOM(); draft.dia7=3; draft.dia28=3; render();
+  });
   const presetTestigo28 = document.getElementById('presetTestigo28');
   if(presetTestigo28) presetTestigo28.addEventListener('click', ()=>{
     syncDraftFromDOM(); draft.testigo28=3; render();
   });
   const presetTestigo2856 = document.getElementById('presetTestigo2856');
   if(presetTestigo2856) presetTestigo2856.addEventListener('click', ()=>{
-    syncDraftFromDOM(); draft.testigo28=3; draft.testigo56=3; render();
+    syncDraftFromDOM(); draft.testigo56=3; render();
   });
   const presetClear = document.getElementById('presetClear');
   if(presetClear) presetClear.addEventListener('click', ()=>{
