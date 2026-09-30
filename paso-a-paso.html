@@ -40,6 +40,9 @@
 
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
+  /* Evita el zoom por doble toque (p. ej. al tocar varias veces + / –) en iPhone.
+     El zoom con dos dedos sigue funcionando. */
+  html, button, a, label, input, select, textarea, .chip{touch-action:manipulation;}
   body{
     background:var(--bg);
     color:var(--text);
@@ -121,7 +124,7 @@
   input[type=text], input[type=number], input[type=date], input[type=time],
   input[type=email], input[type=tel], select, textarea{
     width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm);
-    background:var(--surface); color:var(--text); font-family:var(--font); font-size:15px;
+    background:var(--surface); color:var(--text); font-family:var(--font); font-size:16px;
     appearance:none; -webkit-appearance:none;
   }
   input:focus, select:focus, textarea:focus{
