@@ -259,6 +259,17 @@
 
   .divider{height:1px; background:var(--border); margin:14px 0;}
 
+  /* buscador de muestras */
+  .ficha{border:2px solid var(--border); border-radius:var(--radius-sm); padding:12px; margin-top:10px; background:var(--surface-2);}
+  .ficha-top{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;}
+  .ficha-num{font-size:22px; font-weight:800; color:var(--orange-dark);}
+  .ficha-row{display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--border); font-size:15px;}
+  .ficha-row:last-child{border-bottom:none;}
+  .ficha-row .fl{flex:none; width:116px; color:var(--text-muted); font-weight:600; font-size:14px;}
+  .ficha-row .fv{font-weight:700; color:var(--text); word-break:break-word;}
+  .ficha-row .fv a{color:var(--orange-dark);}
+  .busq-count{font-size:13px; color:var(--text-muted); margin-top:10px; font-weight:600;}
+
   .history-item{
     border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px;
     margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:8px;
@@ -562,7 +573,7 @@ function render(){
   const app = document.getElementById('app');
   const scrollY = window.scrollY;
   app.innerHTML = '<a href="paso-a-paso.html" style="display:block;text-align:center;margin:0 0 14px;padding:11px;border-radius:8px;border:1.5px dashed var(--orange);background:var(--orange-soft);color:var(--orange-dark);font-weight:700;text-decoration:none;">🧪 Probar el modo paso a paso (letra grande)</a>' + renderConfigCard() + renderCatalogosCard() + renderFormCard() +
-                   renderSummaryBar() + renderListCard() + renderExportCard() + renderHistorialCard();
+                   renderSummaryBar() + renderBuscadorCard() + renderListCard() + renderExportCard() + renderHistorialCard();
   bindEvents();
   window.scrollTo(0, scrollY);
 }
@@ -876,6 +887,75 @@ function renderSummaryBar(){
     <div class="summary-stat"><div class="n">${totalCil}</div><div class="l">CILINDROS</div></div>
     <div class="summary-stat"><div class="n">${remisiones}</div><div class="l">REMISIONES</div></div>
   </div>`;
+}
+
+/* ---------- Buscador de muestras ----------
+   Busca en todas las muestras del celular, que la sincronización trae
+   completas desde el Sheet (también las ya enviadas). */
+let busqQuery = '';
+function normNumMuestra(v){ return String(v==null?'':v).trim().replace(/^0+(?=\d)/,'').toLowerCase(); }
+function fechaLegible(v){
+  const t = String(v||'');
+  return /^\d{4}-\d{2}-\d{2}/.test(t) ? fmtDateHuman(t.slice(0,10)) : (t ? escapeHtml(t) : '—');
+}
+function edadesTexto(m){
+  const partes = AGE_FIELDS.filter(f=>Number(m[f.key])>0).map(f=>`${m[f.key]} a ${f.label.toLowerCase()}`);
+  if(Number(m.cantidadOtroDia)>0) partes.push(`${m.cantidadOtroDia} a día ${escapeHtml(String(m.otroDia||'?'))}`);
+  return partes.join(', ');
+}
+function fichaMuestra(m){
+  const fila = (l, v) => v ? `<div class="ficha-row"><span class="fl">${l}</span><span class="fv">${v}</span></div>` : '';
+  const e = v => escapeHtml(String(v==null?'':v).trim());
+  const estado = m.archivado
+    ? `<span class="badge">Enviada ${m.fechaExportLote ? fechaLegible(m.fechaExportLote) : ''}</span>`
+    : `<span class="badge warn">En la lista actual</span>`;
+  return `
+  <div class="ficha">
+    <div class="ficha-top"><span class="ficha-num">#${e(m.numeroMuestra)||'?'}</span>${estado}</div>
+    ${fila('Fundida', `${fechaLegible(m.fechaFundida)}${m.horaToma ? ' · '+e(m.horaToma) : ''}`)}
+    ${fila('Elemento', e(m.localizacion))}
+    ${fila('Concretera', e(m.concretera))}
+    ${fila('Remisión', e(m.numeroRemision))}
+    ${fila('Mezcla', e(m.codigoMezcla))}
+    ${fila('Resistencia', m.resistenciaNominalMpa ? e(m.resistenciaNominalMpa)+' MPa' : '')}
+    ${fila('Asentamiento', m.asentamientoMm ? e(m.asentamientoMm)+' mm' : '')}
+    ${fila('Material', [e(m.tipoMaterial), e(m.codigoDimension)].filter(Boolean).join(' · '))}
+    ${fila('Cilindros', totalCilindrosDe(m) ? `${totalCilindrosDe(m)} (${edadesTexto(m)})` : '')}
+    ${fila('Recolección', m.fechaRecoleccion ? fechaLegible(m.fechaRecoleccion) : '')}
+    ${fila('Notas', e(m.observacionesMuestra))}
+    ${fila('Remisión foto', m.fotoRemisionUrl ? `<a href="${e(m.fotoRemisionUrl)}" target="_blank" rel="noopener">Ver foto</a>` : '')}
+  </div>`;
+}
+function renderResultadosBusqueda(q){
+  q = String(q||'').trim();
+  if(!q) return '';
+  const qn = normNumMuestra(q), ql = q.toLowerCase();
+  const pool = state.muestras.filter(m=>!m.eliminado);
+  const exactas = pool.filter(m=>normNumMuestra(m.numeroMuestra)===qn);
+  const otras = pool.filter(m=>!exactas.includes(m) &&
+    [m.numeroMuestra, m.numeroRemision, m.localizacion, m.codigoMezcla, m.concretera]
+      .some(v=>String(v==null?'':v).toLowerCase().includes(ql)));
+  const porFecha = (a,b)=> String(b.fechaFundida||'').localeCompare(String(a.fechaFundida||''));
+  const todas = [...exactas.sort(porFecha), ...otras.sort(porFecha)];
+  if(!todas.length){
+    return `<div class="empty-state">No encontré "${escapeHtml(q)}".${state.config.sheetUrl ? '<br>Si se registró en otro celular, toca "🔄 Sincronizar ahora" en Configuración.' : ''}</div>`;
+  }
+  const res = todas.slice(0,15);
+  return `<div class="busq-count">${todas.length} resultado${todas.length===1?'':'s'}${todas.length>res.length?' (mostrando los 15 más recientes)':''}</div>` + res.map(fichaMuestra).join('');
+}
+function renderBuscadorCard(){
+  return `
+  <details class="card" id="busqDetails">
+    <summary>
+      <span class="label"><span class="dot"></span>🔎 Buscar una muestra</span>
+      <span class="chev">›</span>
+    </summary>
+    <div class="details-body">
+      <p class="card-hint" style="margin-top:0;">Escribe el número (ej: 61), la remisión o el elemento. Busca en todas las muestras, también las ya enviadas.</p>
+      <input type="text" id="busqInput" value="${escapeHtml(busqQuery)}" placeholder="Ej: 061" autocomplete="off" autocapitalize="characters" enterkeyhint="search">
+      <div id="busqResultados">${renderResultadosBusqueda(busqQuery)}</div>
+    </div>
+  </details>`;
 }
 
 /* ---------- Lista consolidada ---------- */
@@ -1275,6 +1355,12 @@ function validarOtroDia(){
   if(draft.otroDia && dia > 0 && cant <= 0) return `Pon cuántos cilindros van a ${dia} días, o borra ese día.`;
   if(draft.otroDia && !(dia > 0)) return 'El día de la otra edad debe ser un número, ej: 90.';
   return '';
+}
+/* Las opciones rápidas reemplazan el plan de edades, incluida "otra edad".
+   Los testigos se conservan: se suman aparte con su propio botón. */
+function limpiarEdadesNormales(){
+  ['dia1','dia3','dia7','dia14','dia28','dia56'].forEach(k=>draft[k]=0);
+  draft.otroDia = ''; draft.cantidadOtroDia = 0;
 }
 function rerenderForm(){ syncDraftFromDOM(); render(); }
 
@@ -1860,19 +1946,19 @@ function bindEvents(){
   /* ----- Formulario: presets ----- */
   const presetTresTresTres = document.getElementById('presetTresTresTres');
   if(presetTresTresTres) presetTresTresTres.addEventListener('click', ()=>{
-    syncDraftFromDOM(); draft.dia7=3; draft.dia14=3; draft.dia28=3; render();
+    syncDraftFromDOM(); limpiarEdadesNormales(); draft.dia7=3; draft.dia14=3; draft.dia28=3; render();
   });
   const preset3728 = document.getElementById('preset3728');
   if(preset3728) preset3728.addEventListener('click', ()=>{
-    syncDraftFromDOM(); draft.dia3=3; draft.dia7=3; draft.dia28=3; render();
+    syncDraftFromDOM(); limpiarEdadesNormales(); draft.dia3=3; draft.dia7=3; draft.dia28=3; render();
   });
   const preset31428 = document.getElementById('preset31428');
   if(preset31428) preset31428.addEventListener('click', ()=>{
-    syncDraftFromDOM(); draft.dia3=3; draft.dia14=3; draft.dia28=3; render();
+    syncDraftFromDOM(); limpiarEdadesNormales(); draft.dia3=3; draft.dia14=3; draft.dia28=3; render();
   });
   const preset728 = document.getElementById('preset728');
   if(preset728) preset728.addEventListener('click', ()=>{
-    syncDraftFromDOM(); draft.dia7=3; draft.dia28=3; render();
+    syncDraftFromDOM(); limpiarEdadesNormales(); draft.dia7=3; draft.dia28=3; render();
   });
   const presetTestigo28 = document.getElementById('presetTestigo28');
   if(presetTestigo28) presetTestigo28.addEventListener('click', ()=>{
@@ -2039,12 +2125,14 @@ render = function(){
   const openState = {
     cfg: document.getElementById('cfgDetails')?.open,
     cat: document.getElementById('catDetails')?.open,
-    hist: document.getElementById('histDetails')?.open
+    hist: document.getElementById('histDetails')?.open,
+    busq: document.getElementById('busqDetails')?.open
   };
   _originalRender();
   if(openState.cfg && document.getElementById('cfgDetails')) document.getElementById('cfgDetails').open = true;
   if(openState.cat && document.getElementById('catDetails')) document.getElementById('catDetails').open = true;
   if(openState.hist && document.getElementById('histDetails')) document.getElementById('histDetails').open = true;
+  if(openState.busq && document.getElementById('busqDetails')) document.getElementById('busqDetails').open = true;
 };
 
 /* =========================================================
@@ -2060,6 +2148,12 @@ document.getElementById('app').addEventListener('click', async (e)=>{
     if(fotoPendientes[draft.id]){ fotoPendientes[draft.id].ultimoError = ''; procesarFotosPendientes(); }
     else{ fotoErrorLocal = null; const input = document.getElementById('fileFotoRemision'); if(input) input.click(); }
   }
+});
+document.getElementById('app').addEventListener('input', (e)=>{
+  if(e.target.id !== 'busqInput') return;
+  busqQuery = e.target.value;
+  const box = document.getElementById('busqResultados');
+  if(box) box.innerHTML = renderResultadosBusqueda(busqQuery);
 });
 window.addEventListener('online', ()=>procesarFotosPendientes());
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') procesarFotosPendientes(); });
