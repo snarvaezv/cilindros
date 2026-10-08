@@ -268,14 +268,6 @@
   .ficha-row .fl{flex:none; width:116px; color:var(--text-muted); font-weight:600; font-size:14px;}
   .ficha-row .fv{font-weight:700; color:var(--text); word-break:break-word;}
   .ficha-row .fv a{color:var(--orange-dark);}
-  .res-box{margin-top:8px; border-top:2px solid var(--border); padding-top:8px;}
-  .res-title{font-size:13px; font-weight:800; color:var(--navy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px;}
-  .res-row{display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); font-size:15px;}
-  .res-row:last-child{border-bottom:none;}
-  .res-edad{flex:none; width:104px; font-weight:800; color:var(--text);}
-  .res-edad small, .res-val small{display:block; font-weight:600; color:var(--text-muted); font-size:13px;}
-  .res-val{font-weight:700; color:var(--text);}
-  .res-val.bajo small{color:var(--red);}
   .busq-import{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; padding-top:10px; border-top:1px dashed var(--border); font-size:13px; color:var(--text-muted);}
   .busq-count{font-size:13px; color:var(--text-muted); margin-top:10px; font-weight:600;}
 
@@ -620,8 +612,7 @@ const STORE_KEYS = {
   mezclas: 'sgs_cilindros_mezclas_v1',
   dimensiones: 'sgs_cilindros_dimensiones_v1',
   localizaciones: 'sgs_cilindros_localizaciones_v1',
-  sync: 'sgs_cilindros_sync_v1',
-  resultados: 'sgs_cilindros_resultados_v1'
+  sync: 'sgs_cilindros_sync_v1'
 };
 
 function loadJSON(key, fallback){
@@ -652,8 +643,7 @@ let state = {
   mezclas: loadJSON(STORE_KEYS.mezclas, MEZCLAS_SEED),
   dimensiones: loadJSON(STORE_KEYS.dimensiones, DIMENSIONES_POR_TIPO),
   localizaciones: loadJSON(STORE_KEYS.localizaciones, []),
-  sync: loadJSON(STORE_KEYS.sync, { lastSyncAt: 0, pendingCount: 0, status: 'idle', lastError: '' }),
-  resultados: loadJSON(STORE_KEYS.resultados, {}) // ensayos del export de SGS, por muestra
+  sync: loadJSON(STORE_KEYS.sync, { lastSyncAt: 0, pendingCount: 0, status: 'idle', lastError: '' })
 };
 
 function persist(part){
@@ -661,7 +651,7 @@ function persist(part){
     config: STORE_KEYS.config, muestras: STORE_KEYS.muestras, historial: STORE_KEYS.historial,
     concreteras: STORE_KEYS.concreteras, mezclas: STORE_KEYS.mezclas,
     dimensiones: STORE_KEYS.dimensiones, localizaciones: STORE_KEYS.localizaciones,
-    sync: STORE_KEYS.sync, resultados: STORE_KEYS.resultados
+    sync: STORE_KEYS.sync
   };
   if(part){ saveJSON(map[part], state[part]); }
   else{ Object.keys(map).forEach(k => saveJSON(map[k], state[k])); }
@@ -801,7 +791,7 @@ function renderCatalogosCard(){
       <div class="import-row">
         <div>
           <div class="ir-text">Histórico de resultados / fallas SGS</div>
-          <div class="ir-count">${Object.keys(state.mezclas).length} mezclas · ${Object.keys(state.resultados).length} muestras con resultados para el buscador</div>
+          <div class="ir-count">${Object.keys(state.mezclas).length} mezclas · ${state.muestras.filter(esHistoricoSgs).length} muestras de antes de la app en el buscador</div>
         </div>
         <label class="btn btn-outline btn-sm" for="fileHistorico">Importar</label>
         <input type="file" id="fileHistorico" accept=".xlsx,.xls">
@@ -1180,50 +1170,14 @@ function edadesTexto(m){
   if(Number(m.cantidadOtroDia)>0) partes.push(`${m.cantidadOtroDia} a día ${escapeHtml(String(m.otroDia||'?'))}`);
   return partes.join(', ');
 }
-function resultadosDe(m){ // ensayos SGS que corresponden a una muestra de la app
-  const n = normNumMuestra(m.numeroMuestra), rem = String(m.numeroRemision||'').trim();
-  return Object.values(state.resultados).find(r => normNumMuestra(r.numero)===n &&
-    (rem && r.remision ? r.remision===rem : r.fechaFundida===String(m.fechaFundida||'').slice(0,10)));
-}
-function cilindrosDeResultados(r){
-  const porEdad = {};
-  r.ensayos.forEach(t=>{ if(t.edad) porEdad[t.edad] = (porEdad[t.edad]||0) + 1; });
-  const edades = Object.keys(porEdad).sort((a,b)=>a-b);
-  return edades.length ? `${r.ensayos.length} (${edades.map(e=>`${porEdad[e]} a día ${e}`).join(', ')})` : '';
-}
-function resultadosHtml(r){
-  if(!r || !r.ensayos.some(t=>t.mpa)) return '';
-  const porEdad = {};
-  r.ensayos.forEach(t=>{ if(t.mpa) (porEdad[t.edad||'?'] = porEdad[t.edad||'?'] || []).push(t); });
-  const filas = Object.keys(porEdad).sort((a,b)=>Number(a)-Number(b)).map(edad=>{
-    const ts = porEdad[edad];
-    const prom = ts.reduce((s,t)=>s+t.mpa,0)/ts.length;
-    const pcts = ts.map(t=>t.porcentaje).filter(Boolean);
-    const pct = pcts.length ? Math.round(pcts.reduce((s,p)=>s+p,0)/pcts.length)
-              : (r.resistenciaNominalMpa ? Math.round(prom/r.resistenciaNominalMpa*100) : '');
-    const bajo = Number(edad)>=28 && pct!=='' && pct<100;
-    return `<div class="res-row"><span class="res-edad">${escapeHtml(edad)} días<small>${ts[0].fechaRotura ? fechaLegible(ts[0].fechaRotura) : ''}</small></span>
-      <span class="res-val ${bajo?'bajo':''}">${ts.map(t=>t.mpa.toFixed(1)).join(' · ')} MPa
-      <small>Promedio ${prom.toFixed(1)} MPa${pct!==''?` · ${pct}% de la nominal`:''}${bajo?' ⚠':''}</small></span></div>`;
-  }).join('');
-  return `<div class="res-box"><div class="res-title">Resultados de laboratorio (SGS)</div>${filas}</div>`;
-}
-function muestraDesdeResultado(r){
-  return { numeroMuestra:r.numero, numeroRemision:r.remision, fechaFundida:r.fechaFundida, localizacion:r.localizacion,
-    concretera:r.concretera, codigoMezcla:r.codigoMezcla, resistenciaNominalMpa:r.resistenciaNominalMpa,
-    asentamientoMm:r.asentamientoMm, tipoMaterial:r.tipoMaterial, codigoDimension:r.codigoDimension };
-}
-function fichaMuestra(item){
-  const m = item.m, r = item.r;
+function fichaMuestra(m){
   const fila = (l, v) => v ? `<div class="ficha-row"><span class="fl">${l}</span><span class="fv">${v}</span></div>` : '';
   const e = v => escapeHtml(String(v==null?'':v).trim());
-  const estado = item.historico
-    ? `<span class="badge">Registro de SGS</span>`
+  const estado = esHistoricoSgs(m)
+    ? `<span class="badge">Enviada antes de la app</span>`
     : m.archivado
       ? `<span class="badge">Enviada ${m.fechaExportLote ? fechaLegible(m.fechaExportLote) : ''}</span>`
       : `<span class="badge warn">En la lista actual</span>`;
-  const cilindros = item.historico ? cilindrosDeResultados(r)
-    : (totalCilindrosDe(m) ? `${totalCilindrosDe(m)} (${edadesTexto(m)})` : '');
   return `
   <div class="ficha">
     <div class="ficha-top"><span class="ficha-num">#${e(m.numeroMuestra)||'?'}</span>${estado}</div>
@@ -1235,35 +1189,22 @@ function fichaMuestra(item){
     ${fila('Resistencia', m.resistenciaNominalMpa ? e(m.resistenciaNominalMpa)+' MPa' : '')}
     ${fila('Asentamiento', m.asentamientoMm ? e(m.asentamientoMm)+' mm' : '')}
     ${fila('Material', [e(m.tipoMaterial), e(m.codigoDimension)].filter(Boolean).join(' · '))}
-    ${fila('Cilindros', cilindros)}
+    ${fila('Cilindros', totalCilindrosDe(m) ? `${totalCilindrosDe(m)} (${edadesTexto(m)})` : '')}
     ${fila('Recolección', m.fechaRecoleccion ? fechaLegible(m.fechaRecoleccion) : '')}
-    ${fila('Obra', item.historico ? e(r.codigoObra) : '')}
     ${fila('Notas', e(m.observacionesMuestra))}
     ${fila('Remisión foto', m.fotoRemisionUrl ? `<a href="${e(m.fotoRemisionUrl)}" target="_blank" rel="noopener">Ver foto</a>` : '')}
-    ${resultadosHtml(r)}
   </div>`;
-}
-function itemsBuscables(){
-  const usados = new Set();
-  const items = state.muestras.filter(m=>!m.eliminado).map(m=>{
-    const r = resultadosDe(m); if(r) usados.add(r);
-    return { m, r };
-  });
-  Object.values(state.resultados).forEach(r=>{
-    if(!usados.has(r)) items.push({ m: muestraDesdeResultado(r), r, historico: true });
-  });
-  return items;
 }
 function renderResultadosBusqueda(q){
   q = String(q||'').trim();
   if(!q) return '';
   const qn = normNumMuestra(q), ql = q.toLowerCase();
-  const pool = itemsBuscables();
-  const exactas = pool.filter(it=>normNumMuestra(it.m.numeroMuestra)===qn);
-  const otras = pool.filter(it=>!exactas.includes(it) &&
-    [it.m.numeroMuestra, it.m.numeroRemision, it.m.localizacion, it.m.codigoMezcla, it.m.concretera]
+  const pool = state.muestras.filter(m=>!m.eliminado);
+  const exactas = pool.filter(m=>normNumMuestra(m.numeroMuestra)===qn);
+  const otras = pool.filter(m=>!exactas.includes(m) &&
+    [m.numeroMuestra, m.numeroRemision, m.localizacion, m.codigoMezcla, m.concretera]
       .some(v=>String(v==null?'':v).toLowerCase().includes(ql)));
-  const porFecha = (a,b)=> String(b.m.fechaFundida||'').localeCompare(String(a.m.fechaFundida||''));
+  const porFecha = (a,b)=> String(b.fechaFundida||'').localeCompare(String(a.fechaFundida||''));
   const todas = [...exactas.sort(porFecha), ...otras.sort(porFecha)];
   if(!todas.length){
     return `<div class="empty-state">No encontré "${escapeHtml(q)}".${state.config.sheetUrl ? '<br>Si se registró en otro celular, toca "🔄 Sincronizar ahora" en Configuración.' : ''}</div>`;
@@ -1283,7 +1224,7 @@ function renderBuscadorCard(){
       <input type="text" id="busqInput" value="${escapeHtml(busqQuery)}" placeholder="Ej: 061" autocomplete="off" autocapitalize="characters" enterkeyhint="search">
       <div id="busqResultados">${renderResultadosBusqueda(busqQuery)}</div>
       <div class="busq-import">
-        <span>${Object.keys(state.resultados).length ? `${Object.keys(state.resultados).length} muestras con resultados de SGS cargadas.` : '¿Muestras de antes de la app? Importa el export de resultados de SGS.'}</span>
+        <span>${state.muestras.some(esHistoricoSgs) ? `${state.muestras.filter(esHistoricoSgs).length} muestras de antes de la app cargadas.` : '¿Muestras de antes de la app? Importa el export de SGS.'}</span>
         <label class="btn btn-outline btn-sm" for="fileHistoricoBusq">Importar</label>
         <input type="file" id="fileHistoricoBusq" accept=".xlsx,.xls">
       </div>
@@ -1381,7 +1322,7 @@ function renderExportCard(){
 
 /* ---------- Historial (derivado de muestras archivadas por lote) ---------- */
 function getLotesHistorial(){
-  const archivadas = state.muestras.filter(m=>m.archivado && !m.eliminado);
+  const archivadas = state.muestras.filter(m=>m.archivado && !m.eliminado && !esHistoricoSgs(m));
   const lotes = {};
   archivadas.forEach(m=>{
     const key = m.loteId || m.fechaExportLote;
@@ -1624,9 +1565,12 @@ function handleFileTemplate(file){
   reader.readAsArrayBuffer(file);
 }
 
-/* ---------- Resultados SGS (export de laboratorio) ----------
-   Viene una fila por cilindro ensayado; se agrupan por muestra
-   (número + remisión + fecha de muestreo) para el buscador. */
+/* ---------- Muestras de antes de la app (export de SGS) ----------
+   El export trae una fila por cilindro ensayado. Se agrupan por muestra
+   (número + remisión + fecha de muestreo) y se guardan como muestras ya
+   enviadas: así el buscador las encuentra y se sincronizan con el Sheet. */
+const LOTE_HISTORICO = 'historico-sgs';
+function esHistoricoSgs(m){ return m.loteId === LOTE_HISTORICO; }
 function fechaSgsAISO(v){
   if(v==null || v==='') return '';
   if(typeof v==='number') return new Date(Math.round((v-25569)*86400000)).toISOString().slice(0,10);
@@ -1635,47 +1579,59 @@ function fechaSgsAISO(v){
   const m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[1]}-${m[2]}-${m[3]}` : t;
 }
-/* La fecha de rotura viene como "7/10/2026 12:00:00 AM" (mes/día/año).
-   Si es ambigua, se elige la lectura que cuadra con muestreo + edad. */
-function fechaRoturaAISO(v, muestreoISO, edad){
-  if(typeof v!=='string') return fechaSgsAISO(v);
-  const m = v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if(!m) return fechaSgsAISO(v);
-  const mdy = `${m[3]}-${pad2(m[1])}-${pad2(m[2])}`, dmy = `${m[3]}-${pad2(m[2])}-${pad2(m[1])}`;
-  if(/^\d{4}-\d{2}-\d{2}$/.test(muestreoISO) && edad){
-    const esperada = fmtDateISO(addDays(parseISO(muestreoISO), Number(edad)));
-    if(dmy===esperada && mdy!==esperada) return dmy;
-  }
-  return Number(m[1])<=12 ? mdy : dmy;
-}
-function importarResultadosSgs(json){
-  const nuevos = {};
+function agruparExportSgs(json){
+  const grupos = {};
   json.forEach(r=>{
     const numero = String(r.label==null ? '' : r.label).trim();
     if(!numero) return;
     const remision = String(r.remision||'').trim(), fecha = fechaSgsAISO(r.fechaMuestreo);
     const key = [normNumMuestra(numero), remision, fecha].join('|');
-    const e = nuevos[key] || (nuevos[key] = {
+    const g = grupos[key] || (grupos[key] = {
       numero, remision, fechaFundida: fecha,
-      codigoObra: String(r.codigoObra||'').trim(), localizacion: String(r.localizacion||'').trim(),
-      asentamientoMm: Number(r.asentamiento)||'', codigoDimension: String(r.dimension||'').trim(),
-      tipoMaterial: String(r.tipoMaterial||'').trim(), codigoMezcla: String(r.codigoMezcla||'').trim(),
-      resistenciaNominalMpa: Number(r['Resistencia Nominal Mpa'])||'', concretera: String(r.concretera||'').trim(),
-      ensayos: []
+      localizacion: String(r.localizacion||'').trim(), asentamientoMm: Number(r.asentamiento)||'',
+      codigoDimension: String(r.dimension||'').trim(), tipoMaterial: String(r.tipoMaterial||'').trim(),
+      codigoMezcla: String(r.codigoMezcla||'').trim(), resistenciaNominalMpa: Number(r['Resistencia Nominal Mpa'])||'',
+      concretera: String(r.concretera||'').trim(), edades: {}
     });
-    const edad = Number(r.edad)||'';
-    if(edad || r['Resistencia Mpa']!==''){
-      e.ensayos.push({
-        edad, fechaRotura: fechaRoturaAISO(r.fechaRotura, fecha, edad),
-        mpa: Number(r['Resistencia Mpa'])||'', porcentaje: Number(r.porcentaje)||'',
-        falla: String(r.falla==null ? '' : r.falla).trim()
-      });
-    }
+    const edad = Number(r.edad);
+    if(edad > 0) g.edades[edad] = (g.edades[edad]||0) + 1;
   });
-  const antes = Object.keys(state.resultados).length;
-  Object.assign(state.resultados, nuevos); // reimportar el mismo export reemplaza, no duplica
-  persist('resultados');
-  return { muestras: Object.keys(nuevos).length, nuevas: Object.keys(state.resultados).length - antes };
+  return Object.values(grupos);
+}
+function muestraDesdeExport(g){
+  const m = { ...blankMuestra(),
+    id: 'sgs-' + [normNumMuestra(g.numero), g.remision, g.fechaFundida].join('-').replace(/[^A-Za-z0-9-]/g,''),
+    numeroMuestra: g.numero, numeroRemision: g.remision, fechaFundida: g.fechaFundida, horaToma: '',
+    localizacion: g.localizacion, concretera: g.concretera, codigoMezcla: g.codigoMezcla,
+    asentamientoMm: g.asentamientoMm, asentamientoPulgadas: '', resistenciaNominalMpa: g.resistenciaNominalMpa,
+    tipoMaterial: g.tipoMaterial || 'Concreto', codigoDimension: g.codigoDimension, fechaRecoleccion: '',
+    archivado: true, loteId: LOTE_HISTORICO, fechaExportLote: '', updatedAt: Date.now()
+  };
+  // edades de la plantilla; la primera edad "rara" va a Otro día y las demás a observaciones
+  const campo = {1:'dia1', 3:'dia3', 7:'dia7', 14:'dia14', 28:'dia28', 56:'dia56'};
+  const otras = [];
+  Object.keys(g.edades).map(Number).sort((a,b)=>a-b).forEach(edad=>{
+    if(campo[edad]) m[campo[edad]] = g.edades[edad];
+    else otras.push([edad, g.edades[edad]]);
+  });
+  if(otras.length){ m.otroDia = otras[0][0]; m.cantidadOtroDia = otras[0][1]; }
+  if(otras.length > 1) m.observacionesMuestra = 'Otras edades: ' + otras.slice(1).map(([e,n])=>`${n} a día ${e}`).join(', ');
+  return m;
+}
+function importarMuestrasSgs(grupos){
+  let nuevas = 0, yaEstaban = 0;
+  grupos.forEach(g=>{
+    const m = muestraDesdeExport(g);
+    const existe = state.muestras.some(x => x.id===m.id || (!x.eliminado &&
+      normNumMuestra(x.numeroMuestra)===normNumMuestra(m.numeroMuestra) &&
+      (String(x.numeroRemision||'').trim() && m.numeroRemision
+        ? String(x.numeroRemision).trim()===m.numeroRemision
+        : String(x.fechaFundida||'').slice(0,10)===m.fechaFundida)));
+    if(existe){ yaEstaban++; return; }
+    state.muestras.push(m); nuevas++;
+  });
+  if(nuevas){ persist('muestras'); syncPush(true); }
+  return { nuevas, yaEstaban };
 }
 
 function handleFileHistorico(file){
@@ -1704,9 +1660,9 @@ function handleFileHistorico(file){
         if(conc && !state.concreteras.includes(conc)){ state.concreteras.push(conc); }
       });
       persist('mezclas'); persist('localizaciones'); persist('concreteras');
-      const rs = importarResultadosSgs(json);
-      showToast(rs.muestras
-        ? `Histórico importado: ${rs.muestras} muestras con resultados (${rs.nuevas} nuevas), ${mezclasAdded} mezclas y ${locAdded} elementos nuevos.`
+      const rs = importarMuestrasSgs(agruparExportSgs(json));
+      showToast((rs.nuevas || rs.yaEstaban)
+        ? `Histórico importado: ${rs.nuevas} muestras enviadas agregadas al buscador${rs.yaEstaban ? ` (${rs.yaEstaban} ya estaban)` : ''}.`
         : `Histórico importado: ${mezclasAdded} mezclas y ${locAdded} localizaciones nuevas.`);
       render();
     }catch(err){
@@ -2551,6 +2507,19 @@ document.getElementById('app').addEventListener('input', (e)=>{
 window.addEventListener('online', ()=>procesarFotosPendientes());
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') procesarFotosPendientes(); });
 setInterval(()=>{ if(Object.keys(fotoPendientes).length && navigator.onLine !== false) procesarFotosPendientes(); }, 45000);
+(function migrarResultadosAntiguos(){
+  try{
+    const raw = localStorage.getItem('sgs_cilindros_resultados_v1');
+    if(!raw) return;
+    const viejos = Object.values(JSON.parse(raw) || {});
+    importarMuestrasSgs(viejos.map(r=>{
+      const edades = {};
+      (r.ensayos||[]).forEach(t=>{ if(Number(t.edad)>0) edades[t.edad] = (edades[t.edad]||0) + 1; });
+      return { ...r, edades };
+    }));
+    localStorage.removeItem('sgs_cilindros_resultados_v1');
+  }catch(e){ console.warn('migrarResultadosAntiguos', e); }
+})();
 render();
 cargarFotosPendientes();
 if(state.config.sheetUrl){ syncPull(); }
