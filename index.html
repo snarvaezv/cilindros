@@ -1268,6 +1268,14 @@ function syncDraftFromDOM(){
   draft.cantidadOtroDia = g('fCantidadOtroDia').value;
   draft.observacionesMuestra = g('fObsMuestra').value;
 }
+/* "Otra edad": si hay cantidad, el día es obligatorio (y al revés) */
+function validarOtroDia(){
+  const dia = Number(draft.otroDia), cant = Number(draft.cantidadOtroDia)||0;
+  if(cant > 0 && !(dia > 0)) return 'Escribe a cuántos días es la otra edad (ej: 90).';
+  if(draft.otroDia && dia > 0 && cant <= 0) return `Pon cuántos cilindros van a ${dia} días, o borra ese día.`;
+  if(draft.otroDia && !(dia > 0)) return 'El día de la otra edad debe ser un número, ej: 90.';
+  return '';
+}
 function rerenderForm(){ syncDraftFromDOM(); render(); }
 
 /* ---------- Autocompletado propio (input + dropdown) ---------- */
@@ -1891,6 +1899,8 @@ function bindEvents(){
       if(!draft.concretera.trim()){ showToast('Falta la concretera.'); return; }
       const total = AGE_FIELDS.reduce((s,f)=>s+(Number(draft[f.key])||0),0) + (Number(draft.cantidadOtroDia)||0);
       if(total<=0){ showToast('Agrega al menos un cilindro por edad.'); return; }
+      const errOtro = validarOtroDia();
+      if(errOtro){ showToast(errOtro); return; }
 
       const muestra = { ...draft, updatedAt: Date.now() };
       learnFromMuestra(muestra);

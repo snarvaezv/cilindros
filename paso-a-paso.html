@@ -418,6 +418,12 @@
     font-size:30px; font-weight:800; line-height:1; color:#000; cursor:pointer; font-family:var(--font);
   }
   .wiz-age .wa-val{min-width:36px; text-align:center; font-size:28px; font-weight:800; color:#000;}
+  .wiz-age .wa-otro{display:flex; align-items:center; gap:8px;}
+  .wiz .wiz-age .wa-otro input{width:68px; min-height:52px; padding:6px; font-size:22px; text-align:center;}
+  .wiz-age.otro{gap:6px; padding:8px;}
+  .wiz-age.otro .wa-ctrl{gap:6px;}
+  .wiz-age.otro .wa-ctrl button{width:50px; height:50px;}
+  .wiz-age.otro .wa-val{min-width:28px;}
   .wiz-total{
     margin-top:14px; padding:14px; border-radius:12px; background:#0F172A; color:#fff;
     font-size:22px; font-weight:800; text-align:center;
@@ -974,7 +980,7 @@ const WIZ_STEPS = [
   {
     title:'Cilindros',
     summary:()=> wizAgesText() ? `${wizTotalCil()} cilindros (${wizAgesText()})` : '',
-    valid:()=> wizTotalCil()>0 ? '' : 'Pon al menos un cilindro.',
+    valid:()=> wizTotalCil()<=0 ? 'Pon al menos un cilindro.' : validarOtroDia(),
     body:()=>`
       <p class="wiz-q">¿Cuántos cilindros y a qué edad?</p>
       <p class="wiz-help">Toca una opción rápida, o usa los botones + y –.</p>
@@ -998,10 +1004,16 @@ const WIZ_STEPS = [
             </span>
           </div>`; }).join('')}
       </div>
-      <div class="wiz-sub">¿Otra edad? (opcional)</div>
-      <div class="row2">
-        <input type="number" id="fOtroDia" value="${draft.otroDia}" placeholder="Día" inputmode="numeric">
-        <input type="number" id="fCantidadOtroDia" value="${draft.cantidadOtroDia||''}" placeholder="Cantidad" inputmode="numeric">
+      <div class="wiz-sub">¿Otra edad? Ejemplo: 90 días</div>
+      <div class="wiz-age otro ${Number(draft.cantidadOtroDia)>0?'has':''}">
+        <label class="wa-lbl wa-otro">Día
+          <input type="number" id="fOtroDia" value="${escapeHtml(String(draft.otroDia||''))}" placeholder="90" inputmode="numeric" min="1">
+        </label>
+        <span class="wa-ctrl">
+          <button type="button" data-otro-dec aria-label="Quitar uno">–</button>
+          <span class="wa-val">${Number(draft.cantidadOtroDia)||0}</span>
+          <button type="button" data-otro-inc aria-label="Agregar uno">+</button>
+        </span>
       </div>
       <button type="button" class="wiz-btn plain" id="presetClear">Borrar cantidades</button>
       <div class="wiz-total">🧱 Total: ${wizTotalCil()} cilindros</div>`
@@ -1095,6 +1107,12 @@ function bindWizard(){
     syncDraftFromDOM();
     const p = Number(btn.dataset.asent);
     draft.asentamientoPulgadas = p; draft.asentamientoMm = Math.round(p*25.4); render();
+  }));
+  app.querySelectorAll('[data-otro-inc],[data-otro-dec]').forEach(btn=>btn.addEventListener('click', ()=>{
+    syncDraftFromDOM();
+    const n = (Number(draft.cantidadOtroDia)||0) + (btn.hasAttribute('data-otro-inc') ? 1 : -1);
+    draft.cantidadOtroDia = Math.max(0, n);
+    render();
   }));
   app.querySelectorAll('[data-loc]').forEach(btn=>btn.addEventListener('click', ()=>{
     syncDraftFromDOM(); draft.localizacion = btn.dataset.loc; render();
@@ -1513,6 +1531,14 @@ function syncDraftFromDOM(){
   if(!draft.fechaFundida) draft.fechaFundida = todayISO();
   if(!draft.horaToma) draft.horaToma = nowHHMM();
   if(!draft.fechaRecoleccion) draft.fechaRecoleccion = suggestFechaRecoleccion(todayISO());
+}
+/* "Otra edad": si hay cantidad, el día es obligatorio (y al revés) */
+function validarOtroDia(){
+  const dia = Number(draft.otroDia), cant = Number(draft.cantidadOtroDia)||0;
+  if(cant > 0 && !(dia > 0)) return 'Escribe a cuántos días es la otra edad (ej: 90).';
+  if(draft.otroDia && dia > 0 && cant <= 0) return `Pon cuántos cilindros van a ${dia} días, o borra ese día.`;
+  if(draft.otroDia && !(dia > 0)) return 'El día de la otra edad debe ser un número, ej: 90.';
+  return '';
 }
 function rerenderForm(){ syncDraftFromDOM(); render(); }
 
@@ -2138,6 +2164,8 @@ function bindEvents(){
       if(!draft.concretera.trim()){ showToast('Falta la concretera.'); return; }
       const total = AGE_FIELDS.reduce((s,f)=>s+(Number(draft[f.key])||0),0) + (Number(draft.cantidadOtroDia)||0);
       if(total<=0){ showToast('Agrega al menos un cilindro por edad.'); return; }
+      const errOtro = validarOtroDia();
+      if(errOtro){ showToast(errOtro); return; }
 
       const muestra = { ...draft, updatedAt: Date.now() };
       learnFromMuestra(muestra);
