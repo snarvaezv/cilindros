@@ -300,6 +300,7 @@
   .foto-status a{color:var(--orange-dark); font-weight:700; text-decoration:none;}
   .foto-status.foto-ok{background:var(--green-soft); border-color:var(--green);}
   .foto-status.foto-error{background:var(--red-soft); border-color:var(--red); color:var(--red);}
+  .foto-status.foto-pending{background:var(--orange-soft); border-color:var(--orange); color:#7C2D12;}
   .foto-spinner{
     width:13px; height:13px; border-radius:50%;
     border:2px solid var(--border); border-top-color:var(--orange);
@@ -550,8 +551,9 @@ function blankMuestra(){
 
 let draft = blankMuestra();
 let editingId = null;
-let fotoUploadStatus = 'idle'; // 'idle' | 'uploading' | 'ok' | 'error'
-let fotoUploadError = '';
+let fotoSubiendoId = null;   // muestra cuya foto se está subiendo en este momento
+let fotoPendientes = {};     // muestraId -> foto guardada en el celular que falta subir
+let fotoErrorLocal = null;   // {id, msg}: la foto no se pudo abrir/comprimir
 
 /* =========================================================
    RENDER: shell
@@ -688,12 +690,19 @@ function cameraIconSvg(size){
   </svg>`;
 }
 function renderFotoRemisionBlock(){
-  if(fotoUploadStatus === 'uploading'){
-    return `<div class="foto-status"><span class="foto-spinner"></span> Subiendo foto de la remisión…</div>`;
+  const id = draft.id;
+  if(fotoSubiendoId === id){
+    return `<div class="foto-status"><span class="foto-spinner"></span> Subiendo foto de la remisión… Puedes seguir llenando.</div>`;
   }
-  if(fotoUploadStatus === 'error'){
-    return `<div class="foto-status foto-error">⚠ ${escapeHtml(fotoUploadError||'No se pudo subir la foto.')}
-      <button type="button" class="btn btn-outline btn-sm" id="btnReintentarFoto" style="margin-left:6px;">Reintentar</button></div>`;
+  const pend = fotoPendientes[id];
+  if(pend){
+    return `<div class="foto-status foto-pending">📷 Foto guardada en el celular, falta subirla. ${escapeHtml(pend.ultimoError||'')} Se subirá sola cuando haya señal.
+      <button type="button" class="btn btn-outline btn-sm" id="btnReintentarFoto" style="margin-left:6px;">Subir ahora</button>
+      <button type="button" class="icon-btn danger" id="btnQuitarFoto" title="Quitar foto">🗑</button></div>`;
+  }
+  if(fotoErrorLocal && fotoErrorLocal.id === id){
+    return `<div class="foto-status foto-error">⚠ ${escapeHtml(fotoErrorLocal.msg)}
+      <button type="button" class="btn btn-outline btn-sm" id="btnReintentarFoto" style="margin-left:6px;">Elegir otra</button></div>`;
   }
   if(draft.fotoRemisionUrl){
     return `<div class="foto-status foto-ok">
@@ -729,7 +738,7 @@ function renderFormCard(){
         <input type="text" id="fRemision" value="${escapeHtml(draft.numeroRemision)}" placeholder="Ej: FB250000091664">
       </label>
     </div>
-    ${renderFotoRemisionBlock()}
+    <div id="fotoStatusBox">${renderFotoRemisionBlock()}</div>
 
     <div class="row2">
       <label class="field">
@@ -896,6 +905,7 @@ function renderListCard(){
         <span class="tag">${escapeHtml(String(m.resistenciaNominalMpa||'-'))} MPa</span>
         <span class="tag">${escapeHtml(m.numeroRemision||'sin remisión')}</span>
         ${m.fotoRemisionUrl? `<a href="${escapeHtml(m.fotoRemisionUrl)}" target="_blank" rel="noopener" class="tag qty">${cameraIconSvg(12)} Ver remisión</a>` : ''}
+        ${fotoPendientes[m.id]? `<span class="tag urgent">${cameraIconSvg(12)} Foto por subir</span>` : ''}
         ${ageTagsFor(m)}
       </div>
     </div>`).join('');
@@ -1342,7 +1352,15 @@ function mergeMuestras(local, remote){
   return Object.values(byId);
 }
 
+/* Safari dice "Fetch is aborted" cuando se acaba el tiempo de espera:
+   casi siempre es señal lenta en obra, no un error de la app. */
+function isTimeoutError(err){
+  const m = String((err && (err.name + ' ' + err.message)) || '').toLowerCase();
+  return m.includes('abort') || m.includes('tiempo de espera') || m.includes('timeout');
+}
 function describeSyncError(err){
+  if(isTimeoutError(err)) return 'La señal está lenta y no alcanzó a sincronizar.';
+  if(err && /failed to fetch|load failed|network/i.test(err.message||'')) return 'Sin conexión a internet.';
   return (err && err.message) || 'Error desconocido';
 }
 
@@ -1443,28 +1461,50 @@ async function fetchPostJson(url, payloadObj, timeoutMs){
    (misma técnica de envío que usa la sincronización, para esquivar CORS)
    ========================================================= */
 function compressImageFile(file, maxDim, quality){
+  // objectURL en vez de FileReader: usa mucha menos memoria con fotos grandes
   return new Promise((resolve, reject)=>{
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('Archivo de imagen inválido.'));
-      img.onload = () => {
-        let { width, height } = img;
-        const max = maxDim || 1600;
+    const src = URL.createObjectURL(file);
+    const img = new Image();
+    const fail = (msg)=>{ URL.revokeObjectURL(src); reject(new Error(msg)); };
+    img.onerror = () => fail('Formato de imagen no soportado.');
+    img.onload = () => {
+      try{
+        let width = img.naturalWidth, height = img.naturalHeight;
+        if(!width || !height) return fail('Imagen vacía.');
+        const max = maxDim || 1280;
         if(width > max || height > max){
           if(width > height){ height = Math.round(height * max/width); width = max; }
           else { width = Math.round(width * max/height); height = max; }
         }
         const canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality || 0.75));
-      };
-      img.src = e.target.result;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height); // PNG transparente -> fondo blanco, no negro
+        ctx.drawImage(img, 0, 0, width, height);
+        const out = canvas.toDataURL('image/jpeg', quality || 0.65);
+        URL.revokeObjectURL(src);
+        if(!out || !out.startsWith('data:image/jpeg') || out.length < 1000) return reject(new Error('No se pudo comprimir.'));
+        resolve(out);
+      }catch(e){ fail(e.message || 'No se pudo comprimir.'); }
     };
-    reader.readAsDataURL(file);
+    img.src = src;
   });
+}
+/* Acepta fotos de cualquier celular (iPhone, Android, reenviadas por WhatsApp):
+   todas se pasan a JPEG de máx. 1280 px, con la orientación correcta. */
+async function prepararFoto(file){
+  if(file.type && !file.type.startsWith('image/')) throw new Error('Ese archivo no es una foto. Elige una imagen.');
+  try{
+    return await compressImageFile(file, 1280, 0.65);
+  }catch(err){
+    console.warn('compressImageFile', err);
+    throw new Error('No se pudo abrir esta foto (puede estar dañada). Tómala de nuevo, o envíala como captura de pantalla.');
+  }
+}
+function nombreFotoRemision(dataUrl){
+  const ext = /^data:image\/png/.test(dataUrl) ? 'png' : /^data:image\/webp/.test(dataUrl) ? 'webp' : 'jpg';
+  const limpio = v => String(v||'').trim().replace(/[^A-Za-z0-9_-]+/g,'') ;
+  return ['remision', limpio(draft.numeroMuestra)||'sin-numero', limpio(draft.numeroRemision), Date.now()].filter(Boolean).join('_') + '.' + ext;
 }
 
 async function uploadFotoRemision(dataUrl, fileName){
@@ -1476,14 +1516,111 @@ async function uploadFotoRemision(dataUrl, fileName){
   const payload = { action:'uploadPhoto', fileData: base64, fileName: fileName || ('remision_'+Date.now()+'.jpg'), mimeType };
   let data, lastErr;
   try{
-    data = await postViaHiddenForm(url, payload, 8000);
+    data = await postViaHiddenForm(url, payload, 40000);
   }catch(err){
     lastErr = err;
-    try{ data = await fetchPostJson(url, payload, 12000); }
+    try{ data = await fetchPostJson(url, payload, 40000); }
     catch(err2){ lastErr = err2; }
   }
-  if(!data || data.ok===false) throw new Error((data&&data.error) || (lastErr&&lastErr.message) || 'No se pudo subir la foto.');
+  if(!data || data.ok===false){
+    if(!data && lastErr && isTimeoutError(lastErr)) throw new Error('La señal está lenta.');
+    if(!data && lastErr && /failed to fetch|load failed|network/i.test(lastErr.message||'')) throw new Error('Sin internet.');
+    throw new Error((data&&data.error) || (lastErr&&lastErr.message) || 'No se pudo subir la foto.');
+  }
   return data.url;
+}
+
+/* =========================================================
+   FOTOS PENDIENTES: si la subida se corta (señal, Safari en segundo plano),
+   la foto queda guardada en el celular (IndexedDB) y se reintenta sola.
+   ========================================================= */
+const FOTO_DB = 'sgs_cilindros_fotos_v1', FOTO_STORE = 'pendientes';
+function fotoDbOpen(){
+  return new Promise((resolve, reject)=>{
+    if(!window.indexedDB) return reject(new Error('sin IndexedDB'));
+    const req = indexedDB.open(FOTO_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(FOTO_STORE, {keyPath:'muestraId'});
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function fotoDbRun(mode, fn){
+  try{
+    const db = await fotoDbOpen();
+    return await new Promise((resolve, reject)=>{
+      const tx = db.transaction(FOTO_STORE, mode);
+      const req = fn(tx.objectStore(FOTO_STORE));
+      tx.oncomplete = () => resolve(req && req.result);
+      tx.onerror = () => reject(tx.error);
+    });
+  }catch(e){ console.warn('fotos pendientes (IndexedDB)', e); return null; } // si falla, la cola vive solo en memoria
+}
+function fotoTieneDestino(id){
+  return draft.id === id || state.muestras.some(m=>m.id===id && !m.eliminado);
+}
+async function encolarFoto(muestraId, dataUrl, fileName){
+  const item = { muestraId, dataUrl, fileName, createdAt: Date.now(), ultimoError: '' };
+  fotoPendientes[muestraId] = item;
+  await fotoDbRun('readwrite', st=>st.put(item));
+  procesarFotosPendientes();
+}
+async function quitarFotoPendiente(id){
+  delete fotoPendientes[id];
+  await fotoDbRun('readwrite', st=>st.delete(id));
+}
+function asignarFotoSubida(id, url){
+  if(draft.id === id) draft.fotoRemisionUrl = url;
+  const m = state.muestras.find(x=>x.id===id);
+  if(m){ m.fotoRemisionUrl = url; m.updatedAt = Date.now(); persist('muestras'); syncPush(true); }
+}
+/* Refresca la pantalla sin cerrar el teclado si la persona está escribiendo */
+function actualizarFotoUI(){
+  const ae = document.activeElement;
+  const escribiendo = ae && (ae.tagName==='TEXTAREA' || (ae.tagName==='INPUT' && ae.type!=='file'));
+  if(escribiendo){
+    const box = document.getElementById('fotoStatusBox');
+    if(box) box.innerHTML = renderFotoRemisionBlock();
+    return;
+  }
+  syncDraftFromDOM();
+  render();
+}
+let procesandoFotos = false;
+async function procesarFotosPendientes(){
+  if(procesandoFotos) return;
+  procesandoFotos = true;
+  try{
+    for(const id of Object.keys(fotoPendientes)){
+      const item = fotoPendientes[id];
+      if(!item) continue;
+      if(!fotoTieneDestino(id)){ await quitarFotoPendiente(id); continue; } // borrador descartado o muestra eliminada
+      fotoSubiendoId = id; actualizarFotoUI();
+      try{
+        const url = await uploadFotoRemision(item.dataUrl, item.fileName);
+        if(fotoPendientes[id] === item){
+          await quitarFotoPendiente(id);
+          asignarFotoSubida(id, url);
+          showToast('Foto de la remisión subida.');
+        }
+      }catch(err){
+        console.warn('uploadFotoRemision', err);
+        item.ultimoError = err.message || 'No se pudo subir.';
+        if(navigator.onLine === false) break; // sin señal: no tiene caso intentar las demás
+      }finally{
+        fotoSubiendoId = null;
+      }
+    }
+  }finally{
+    procesandoFotos = false;
+    actualizarFotoUI();
+    // si llegó una foto nueva mientras subía otra, se procesa de una vez
+    if(Object.values(fotoPendientes).some(it=>!it.ultimoError)) setTimeout(procesarFotosPendientes, 0);
+  }
+}
+async function cargarFotosPendientes(){
+  const items = await fotoDbRun('readonly', st=>st.getAll()) || [];
+  items.forEach(it=>{ if(!fotoPendientes[it.muestraId]) fotoPendientes[it.muestraId] = it; });
+  if(items.length) procesarFotosPendientes();
 }
 
 async function syncPull(){
@@ -1492,11 +1629,11 @@ async function syncPull(){
   setSyncStatus('syncing'); render();
   let data, lastErr;
   try{
-    data = await jsonp(url, 8000);
+    data = await jsonp(url, 20000);
   }catch(err){
     console.warn('syncPull: JSONP falló, probando fetch directo', err);
     lastErr = err;
-    try{ data = await fetchGetJson(url, 10000); }
+    try{ data = await fetchGetJson(url, 20000); }
     catch(err2){ lastErr = err2; }
   }
   try{
@@ -1542,11 +1679,11 @@ async function syncPush(silent){
   };
   let data, lastErr;
   try{
-    data = await postViaHiddenForm(url, payload, 8000);
+    data = await postViaHiddenForm(url, payload, 20000);
   }catch(err){
     console.warn('syncPush: formulario oculto falló, probando fetch directo', err);
     lastErr = err;
-    try{ data = await fetchPostJson(url, payload, 10000); }
+    try{ data = await fetchPostJson(url, payload, 20000); }
     catch(err2){ lastErr = err2; }
   }
   try{
@@ -1666,38 +1803,17 @@ function bindEvents(){
       fileFotoRemision.value = '';
       if(!file) return;
       syncDraftFromDOM();
-      fotoUploadStatus = 'uploading'; fotoUploadError = '';
-      render();
+      const muestraId = draft.id; // la subida puede tardar: si ya la guardaron, la foto va a esa muestra
+      fotoErrorLocal = null;
+      let dataUrl;
       try{
-        const dataUrl = await compressImageFile(file, 1600, 0.75);
-        const url = await uploadFotoRemision(dataUrl, file.name);
-        draft.fotoRemisionUrl = url;
-        fotoUploadStatus = 'ok';
-        showToast('Foto de la remisión subida.');
+        dataUrl = await prepararFoto(file);
       }catch(err){
-        console.error('uploadFotoRemision error', err);
-        fotoUploadStatus = 'error';
-        fotoUploadError = err.message || 'Error desconocido';
+        fotoErrorLocal = { id: muestraId, msg: err.message };
+        actualizarFotoUI();
+        return;
       }
-      render();
-    });
-  }
-  const btnQuitarFoto = document.getElementById('btnQuitarFoto');
-  if(btnQuitarFoto){
-    btnQuitarFoto.addEventListener('click', ()=>{
-      syncDraftFromDOM();
-      draft.fotoRemisionUrl = '';
-      fotoUploadStatus = 'idle';
-      render();
-    });
-  }
-  const btnReintentarFoto = document.getElementById('btnReintentarFoto');
-  if(btnReintentarFoto){
-    btnReintentarFoto.addEventListener('click', ()=>{
-      fotoUploadStatus = 'idle'; fotoUploadError = '';
-      render();
-      const input = document.getElementById('fileFotoRemision');
-      if(input) input.click();
+      await encolarFoto(muestraId, dataUrl, nombreFotoRemision(dataUrl));
     });
   }
 
@@ -1790,14 +1906,14 @@ function bindEvents(){
       persist('muestras');
       draft = blankMuestra();
       editingId = null;
-      fotoUploadStatus = 'idle'; fotoUploadError = '';
+      fotoErrorLocal = null;
       render();
       syncPush();
     });
   }
   const btnCancelEdit = document.getElementById('btnCancelEdit');
   if(btnCancelEdit) btnCancelEdit.addEventListener('click', ()=>{
-    draft = blankMuestra(); editingId=null; fotoUploadStatus='idle'; fotoUploadError=''; render();
+    draft = blankMuestra(); editingId=null; fotoErrorLocal=null; render();
   });
 
   /* ----- Lista: editar / eliminar ----- */
@@ -1807,8 +1923,7 @@ function bindEvents(){
       if(!m) return;
       draft = { ...m };
       editingId = m.id;
-      fotoUploadStatus = m.fotoRemisionUrl ? 'ok' : 'idle';
-      fotoUploadError = '';
+      fotoErrorLocal = null;
       render();
       window.scrollTo({top:0, behavior:'smooth'});
     });
@@ -1925,7 +2040,22 @@ render = function(){
 /* =========================================================
    INIT
    ========================================================= */
+document.getElementById('app').addEventListener('click', async (e)=>{
+  if(e.target.closest('#btnQuitarFoto')){
+    syncDraftFromDOM();
+    if(fotoPendientes[draft.id]) await quitarFotoPendiente(draft.id);
+    else draft.fotoRemisionUrl = '';
+    render();
+  }else if(e.target.closest('#btnReintentarFoto')){
+    if(fotoPendientes[draft.id]){ fotoPendientes[draft.id].ultimoError = ''; procesarFotosPendientes(); }
+    else{ fotoErrorLocal = null; const input = document.getElementById('fileFotoRemision'); if(input) input.click(); }
+  }
+});
+window.addEventListener('online', ()=>procesarFotosPendientes());
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') procesarFotosPendientes(); });
+setInterval(()=>{ if(Object.keys(fotoPendientes).length && navigator.onLine !== false) procesarFotosPendientes(); }, 45000);
 render();
+cargarFotosPendientes();
 if(state.config.sheetUrl){ syncPull(); }
 </script>
 </body>
