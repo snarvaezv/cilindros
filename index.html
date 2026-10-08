@@ -1342,7 +1342,15 @@ function mergeMuestras(local, remote){
   return Object.values(byId);
 }
 
+/* Safari dice "Fetch is aborted" cuando se acaba el tiempo de espera:
+   casi siempre es señal lenta en obra, no un error de la app. */
+function isTimeoutError(err){
+  const m = String((err && (err.name + ' ' + err.message)) || '').toLowerCase();
+  return m.includes('abort') || m.includes('tiempo de espera') || m.includes('timeout');
+}
 function describeSyncError(err){
+  if(isTimeoutError(err)) return 'La señal está lenta y no alcanzó a sincronizar.';
+  if(err && /failed to fetch|load failed|network/i.test(err.message||'')) return 'Sin conexión a internet.';
   return (err && err.message) || 'Error desconocido';
 }
 
@@ -1476,13 +1484,17 @@ async function uploadFotoRemision(dataUrl, fileName){
   const payload = { action:'uploadPhoto', fileData: base64, fileName: fileName || ('remision_'+Date.now()+'.jpg'), mimeType };
   let data, lastErr;
   try{
-    data = await postViaHiddenForm(url, payload, 8000);
+    data = await postViaHiddenForm(url, payload, 40000);
   }catch(err){
     lastErr = err;
-    try{ data = await fetchPostJson(url, payload, 12000); }
+    try{ data = await fetchPostJson(url, payload, 40000); }
     catch(err2){ lastErr = err2; }
   }
-  if(!data || data.ok===false) throw new Error((data&&data.error) || (lastErr&&lastErr.message) || 'No se pudo subir la foto.');
+  if(!data || data.ok===false){
+    if(!data && lastErr && isTimeoutError(lastErr)) throw new Error('La señal está lenta y la foto no alcanzó a subir. Toca Reintentar, o sigue sin foto.');
+    if(!data && lastErr && /failed to fetch|load failed|network/i.test(lastErr.message||'')) throw new Error('Sin internet. Toca Reintentar cuando haya señal, o sigue sin foto.');
+    throw new Error((data&&data.error) || (lastErr&&lastErr.message) || 'No se pudo subir la foto.');
+  }
   return data.url;
 }
 
@@ -1492,11 +1504,11 @@ async function syncPull(){
   setSyncStatus('syncing'); render();
   let data, lastErr;
   try{
-    data = await jsonp(url, 8000);
+    data = await jsonp(url, 20000);
   }catch(err){
     console.warn('syncPull: JSONP falló, probando fetch directo', err);
     lastErr = err;
-    try{ data = await fetchGetJson(url, 10000); }
+    try{ data = await fetchGetJson(url, 20000); }
     catch(err2){ lastErr = err2; }
   }
   try{
@@ -1542,11 +1554,11 @@ async function syncPush(silent){
   };
   let data, lastErr;
   try{
-    data = await postViaHiddenForm(url, payload, 8000);
+    data = await postViaHiddenForm(url, payload, 20000);
   }catch(err){
     console.warn('syncPush: formulario oculto falló, probando fetch directo', err);
     lastErr = err;
-    try{ data = await fetchPostJson(url, payload, 10000); }
+    try{ data = await fetchPostJson(url, payload, 20000); }
     catch(err2){ lastErr = err2; }
   }
   try{
@@ -1666,19 +1678,30 @@ function bindEvents(){
       fileFotoRemision.value = '';
       if(!file) return;
       syncDraftFromDOM();
+      const muestraId = draft.id; // la subida puede tardar: si ya la guardaron, la foto va a esa muestra
       fotoUploadStatus = 'uploading'; fotoUploadError = '';
       render();
       try{
-        const dataUrl = await compressImageFile(file, 1600, 0.75);
+        const dataUrl = await compressImageFile(file, 1280, 0.65);
         const url = await uploadFotoRemision(dataUrl, file.name);
-        draft.fotoRemisionUrl = url;
-        fotoUploadStatus = 'ok';
+        if(draft.id === muestraId){
+          draft.fotoRemisionUrl = url;
+          fotoUploadStatus = 'ok';
+        }else{
+          const m = state.muestras.find(x=>x.id===muestraId);
+          if(m){ m.fotoRemisionUrl = url; m.updatedAt = Date.now(); persist('muestras'); syncPush(true); }
+        }
         showToast('Foto de la remisión subida.');
       }catch(err){
         console.error('uploadFotoRemision error', err);
-        fotoUploadStatus = 'error';
-        fotoUploadError = err.message || 'Error desconocido';
+        if(draft.id === muestraId){
+          fotoUploadStatus = 'error';
+          fotoUploadError = err.message || 'Error desconocido';
+        }else{
+          showToast('La foto de la remisión no se pudo subir. Edita la muestra para intentarlo de nuevo.');
+        }
       }
+      syncDraftFromDOM();
       render();
     });
   }
