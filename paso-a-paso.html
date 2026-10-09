@@ -591,14 +591,41 @@ function colombiaHolidaySet(year){
   return set;
 }
 function isHoliday(d){ return colombiaHolidaySet(d.getFullYear()).has(fmtDateISO(d)); }
-function suggestFechaRecoleccion(fromISO){
-  let d = fromISO ? parseISO(fromISO) : new Date();
-  const dow = d.getDay();
-  const offset = (1 - dow + 7) % 7 || 7; // próximo lunes (si hoy es lunes, el de la semana siguiente)
-  d = addDays(d, offset);
-  let guard = 0;
-  while(isHoliday(d) && guard < 6){ d = addDays(d,1); guard++; }
+/* Recolección (servicio contratado, diario y sin costo):
+   - si la solicitud se monta antes de las 12:00, se recoge el siguiente día hábil;
+   - después de las 12:00, el día hábil siguiente a ese;
+   - el laboratorio no recoge ni falla domingos ni festivos (sí sábados). */
+const HORA_CORTE_RECOLECCION = 12;
+function esDiaHabilLab(d){ return d.getDay()!==0 && !isHoliday(d); }
+function siguienteDiaHabil(d){
+  let r = addDays(d, 1), guard = 0;
+  while(!esDiaHabilLab(r) && guard < 10){ r = addDays(r, 1); guard++; }
+  return r;
+}
+function fechaMinimaRecoleccion(ahora){
+  ahora = ahora || new Date();
+  let d = siguienteDiaHabil(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()));
+  if(ahora.getHours() >= HORA_CORTE_RECOLECCION) d = siguienteDiaHabil(d);
   return fmtDateISO(d);
+}
+function suggestFechaRecoleccion(){ return fechaMinimaRecoleccion(); }
+function textoReloj(){
+  const ahora = new Date(), hora = pad2(ahora.getHours())+':'+pad2(ahora.getMinutes());
+  const min = fmtDateHuman(fechaMinimaRecoleccion(ahora));
+  if(ahora.getHours() < HORA_CORTE_RECOLECCION){
+    const faltan = HORA_CORTE_RECOLECCION*60 - (ahora.getHours()*60 + ahora.getMinutes());
+    const txt = faltan >= 60 ? `${Math.floor(faltan/60)} h ${pad2(faltan%60)} min` : `${faltan} min`;
+    return `🕒 Son las ${hora}. Si montas la solicitud en SGS antes de las 12:00 (faltan ${txt}), se recoge el <b>${min}</b>.`;
+  }
+  return `🕒 Son las ${hora}: ya pasó el corte de las 12:00. Lo más pronto que se puede recoger es el <b>${min}</b>.`;
+}
+/* Aviso bajo la fecha elegida: domingo/festivo, ya no alcanza, u ok */
+function avisoFechaRecoleccion(f){
+  if(!f) return '';
+  const d = parseISO(f), min = fechaMinimaRecoleccion();
+  if(!esDiaHabilLab(d)) return `<b style="color:var(--red);">⚠ ${d.getDay()===0 ? 'Es domingo' : 'Es festivo'}: el laboratorio no recoge ese día.</b>`;
+  if(f < min) return `<b style="color:var(--red);">⚠ Esa fecha ya no alcanza: lo más pronto es el ${fmtDateHuman(min)}.</b>`;
+  return f === min ? '✓ Es la fecha más pronta posible.' : 'Fecha posterior a la más pronta: está bien si así lo quieres.';
 }
 
 /* =========================================================
@@ -1049,9 +1076,8 @@ const WIZ_STEPS = [
       </div>
       <div class="wiz-sub">Fecha de recolección</div>
       <input type="date" id="fFechaRecoleccionMuestra" value="${draft.fechaRecoleccion}">
-      <p class="wiz-help" style="margin:6px 0 0;">${draft.fechaRecoleccion === suggestFechaRecoleccion(todayISO())
-        ? 'Ya viene puesta: el próximo lunes hábil.'
-        : '<b style="color:#C2410C;">⚡ Distinta al resto: se recogerá aparte.</b>'}</p>
+      <p class="wiz-help" style="margin:6px 0 0;">${avisoFechaRecoleccion(draft.fechaRecoleccion)}</p>
+      <p class="wiz-help reloj-recoleccion" style="margin:6px 0 0;">${textoReloj()}</p>
       <div class="wiz-sub">Observaciones (opcional)</div>
       <textarea id="fObsMuestra" placeholder="Notas de campo…">${escapeHtml(draft.observacionesMuestra)}</textarea>`
   }
@@ -1253,7 +1279,7 @@ function renderListCard(){
         </div>
       </div>
       <div class="muestra-tags">
-        <span class="tag ${m.fechaRecoleccion !== suggestFechaRecoleccion(todayISO()) ? 'urgent' : ''}">→ ${fmtDateHuman(m.fechaRecoleccion)}</span>
+        <span class="tag ${fechaRecoleccionConProblema(m.fechaRecoleccion) ? 'urgent' : ''}">→ ${fmtDateHuman(m.fechaRecoleccion)}${fechaRecoleccionConProblema(m.fechaRecoleccion) ? ' ⚠' : ''}</span>
         <span class="tag">${escapeHtml(m.concretera||'-')}</span>
         <span class="tag">Asent. ${escapeHtml(String(m.asentamientoMm||'-'))} mm</span>
         <span class="tag">${escapeHtml(String(m.resistenciaNominalMpa||'-'))} MPa</span>
@@ -1271,6 +1297,9 @@ function renderListCard(){
 }
 
 /* ---------- Generar solicitud / exportar ---------- */
+function fechaRecoleccionConProblema(f){
+  return !!f && (f < fechaMinimaRecoleccion() || !esDiaHabilLab(parseISO(f)));
+}
 function fechaRecoleccionSummary(list){
   const counts = {};
   list.forEach(m=>{ const f = m.fechaRecoleccion || 'sin fecha'; counts[f] = (counts[f]||0)+1; });
@@ -1294,12 +1323,16 @@ function renderExportCard(){
   <section class="card">
     <h2><span class="dot"></span>Generar solicitud</h2>
     <p class="card-hint">La plataforma de SGS exige un Excel independiente por cada fecha de recolección — aquí sale uno listo por cada fecha que hayas usado.</p>
+    <p class="card-hint reloj-recoleccion">${textoReloj()}</p>
     ${!grupos.length ? `<p class="card-hint" style="margin:0;">Aún no hay muestras activas.</p>` : grupos.map(g => `
       <div class="solicitud-group">
         <div class="solicitud-group-header">
           <strong>${g.fecha==='sin-fecha'? 'Sin fecha asignada' : fmtDateHuman(g.fecha)}</strong>
           <span class="badge">${g.items.length} muestra${g.items.length>1?'s':''}</span>
         </div>
+        ${g.fecha!=='sin-fecha' && fechaRecoleccionConProblema(g.fecha) ? `
+          <div class="foto-status foto-error" style="margin:0 0 9px;">${avisoFechaRecoleccion(g.fecha)}
+            <button type="button" class="btn btn-outline btn-sm" data-mover-fecha="${g.fecha}">Pasar al ${fmtDateHuman(fechaMinimaRecoleccion())}</button></div>` : ''}
         <div class="btn-row">
           <button class="btn btn-primary btn-sm" data-descargar-fecha="${g.fecha}" style="flex:1;">⬇ Descargar Excel</button>
           <button class="btn btn-outline btn-sm" data-copiar-fecha="${g.fecha}">📋 Copiar filas</button>
@@ -2334,6 +2367,9 @@ function bindEvents(){
       if(total<=0){ showToast('Agrega al menos un cilindro por edad.'); return; }
       const errOtro = validarOtroDia();
       if(errOtro){ showToast(errOtro); return; }
+      if(draft.fechaRecoleccion && !esDiaHabilLab(parseISO(draft.fechaRecoleccion))){
+        showToast('El laboratorio no recoge domingos ni festivos. Cambia la fecha de recolección.'); return;
+      }
 
       const muestra = { ...draft, updatedAt: Date.now() };
       learnFromMuestra(muestra);
@@ -2433,6 +2469,17 @@ function bindEvents(){
       syncPush();
     });
   });
+  app.querySelectorAll('[data-mover-fecha]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const nueva = fechaMinimaRecoleccion();
+      const items = itemsParaFecha(btn.dataset.moverFecha);
+      items.forEach(m=>{ m.fechaRecoleccion = nueva; m.updatedAt = Date.now(); });
+      persist('muestras');
+      showToast(`${items.length} muestra${items.length===1?'':'s'} pasada${items.length===1?'':'s'} al ${fmtDateHuman(nueva)}.`);
+      render();
+      syncPush();
+    });
+  });
   const btnAplicarFechaMasiva = document.getElementById('btnAplicarFechaMasiva');
   if(btnAplicarFechaMasiva){
     btnAplicarFechaMasiva.addEventListener('click', ()=>{
@@ -2504,6 +2551,18 @@ document.getElementById('app').addEventListener('input', (e)=>{
   const box = document.getElementById('busqResultados');
   if(box) box.innerHTML = renderResultadosBusqueda(busqQuery);
 });
+document.getElementById('app').addEventListener('change', (e)=>{
+  if(e.target.id === 'fFechaRecoleccionMuestra'){ syncDraftFromDOM(); render(); } // actualiza el aviso de la fecha
+});
+setInterval(()=>{
+  document.querySelectorAll('.reloj-recoleccion').forEach(el=>{ el.innerHTML = textoReloj(); });
+  const min = fechaMinimaRecoleccion();
+  if(!editingId && draft.fechaRecoleccion && draft.fechaRecoleccion < min){
+    draft.fechaRecoleccion = min;
+    const inp = document.getElementById('fFechaRecoleccionMuestra');
+    if(inp && document.activeElement !== inp){ inp.value = min; render(); }
+  }
+}, 30000);
 window.addEventListener('online', ()=>procesarFotosPendientes());
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') procesarFotosPendientes(); });
 setInterval(()=>{ if(Object.keys(fotoPendientes).length && navigator.onLine !== false) procesarFotosPendientes(); }, 45000);
