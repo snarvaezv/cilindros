@@ -312,6 +312,15 @@
   .foto-status a{color:var(--orange-dark); font-weight:700; text-decoration:none;}
   .foto-status.foto-ok{background:var(--green-soft); border-color:var(--green);}
   .foto-status.foto-error{background:var(--red-soft); border-color:var(--red); color:var(--red);}
+  .ocr-box{border:2px solid var(--navy); border-radius:var(--radius-sm); padding:10px 12px; margin:-6px 0 12px; background:var(--surface);}
+  .ocr-title{font-weight:800; font-size:14px; color:var(--navy); margin-bottom:6px;}
+  .ocr-row{display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--border); font-size:15px; cursor:pointer;}
+  .ocr-row:last-of-type{border-bottom:none;}
+  .ocr-row input{width:22px; height:22px; flex:none; accent-color:var(--navy);}
+  .ocr-l{flex:none; width:112px; color:var(--text-muted); font-weight:600; font-size:13.5px;}
+  .ocr-v{font-weight:700; color:var(--text); word-break:break-word;}
+  .ocr-v small{display:block; font-weight:600; color:var(--text-muted); font-size:12px;}
+  .ocr-actions{display:flex; gap:8px; margin-top:10px;}
   .foto-status.foto-pending{background:var(--orange-soft); border-color:var(--orange); color:#7C2D12;}
   .foto-spinner{
     width:13px; height:13px; border-radius:50%;
@@ -920,14 +929,14 @@ const WIZ_STEPS = [
     valid:()=> '',
     body:()=>`
       <p class="wiz-q">¿Cuál es el número de la remisión?</p>
-      <p class="wiz-help">Está en el papel que entrega el mixer. Si puedes, tómale una foto.</p>
+      <p class="wiz-help">Está en el papel que entrega el mixer. <b>Tómale una foto</b>: la app intenta leerla y llenar los datos por ti.</p>
       <input type="text" id="fRemision" value="${escapeHtml(draft.numeroRemision)}" placeholder="Ej: FB250000091664" autocomplete="off">
-      <div class="wiz-sub">Foto de la remisión (opcional)</div>
+      <div class="wiz-sub">Foto de la remisión</div>
       <button type="button" class="wiz-foto-btn${draft.fotoRemisionUrl?' has-photo':''}" id="btnFotoRemision">
-        ${cameraIconSvg(30)} ${draft.fotoRemisionUrl || fotoPendientes[draft.id] ? 'Foto lista · tomar otra' : 'Tomar foto'}
+        ${cameraIconSvg(30)} ${draft.fotoRemisionUrl || fotoPendientes[draft.id] ? 'Foto lista · tomar otra' : 'Tomar foto y leer remisión'}
       </button>
       <input type="file" id="fileFotoRemision" accept="image/*" style="display:none;">
-      <div id="fotoStatusBox">${renderFotoRemisionBlock()}</div>`
+      <div id="fotoStatusBox">${renderFotoRemisionBlock()}</div><div id="ocrBox">${renderOcrBlock()}</div>`
   },
   {
     title:'Concretera',
@@ -2002,6 +2011,217 @@ async function uploadFotoRemision(dataUrl, fileName){
 }
 
 /* =========================================================
+   LECTURA DE LA REMISIÓN (OCR en el celular, gratis, con Tesseract.js)
+   Lee la foto y propone datos; nada se llena sin que la persona confirme.
+   El lector (~10 MB) se descarga solo la primera vez que se usa.
+   ========================================================= */
+const OCR_CDN = {
+  lib: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
+  workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
+  corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',
+  langPath: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/spa@1.0.0/4.0.0_best_int'
+};
+let ocrEstado = null;   // {id, token, estado:'leyendo'|'listo'|'error', datos, error}
+let ocrToken = 0;
+let tesseractPromise = null;
+function cargarTesseract(){
+  if(window.Tesseract) return Promise.resolve();
+  if(!tesseractPromise){
+    tesseractPromise = new Promise((resolve, reject)=>{
+      const sc = document.createElement('script');
+      sc.src = OCR_CDN.lib;
+      sc.onload = resolve;
+      sc.onerror = () => { tesseractPromise = null; reject(new Error('No se pudo descargar el lector (¿sin internet?).')); };
+      document.head.appendChild(sc);
+    });
+  }
+  return tesseractPromise;
+}
+/* Foto ampliada (el OCR lee mejor la letra pequeña). Con contraste > 0 se pasa
+   además a grises con más contraste; sirve de segunda pasada. */
+function imagenParaOcr(file, contraste){
+  return new Promise((resolve, reject)=>{
+    const src = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(src); reject(new Error('No se pudo abrir la foto.')); };
+    img.onload = () => {
+      const sc = Math.min(1.6, 3200 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth*sc); c.height = Math.round(img.naturalHeight*sc);
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(src);
+      if(!contraste) return resolve(c);
+      const px = ctx.getImageData(0, 0, c.width, c.height), d = px.data;
+      for(let i=0; i<d.length; i+=4){
+        const g = 0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2];
+        const v = Math.max(0, Math.min(255, (g-128)*contraste + 128));
+        d[i] = d[i+1] = d[i+2] = v;
+      }
+      ctx.putImageData(px, 0, 0);
+      resolve(c);
+    };
+    img.src = src;
+  });
+}
+function normTxt(t){ return String(t||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function mezclaDelCatalogo(texto){
+  const tokens = t => new Set(normTxt(t).replace(/[^A-Z0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>=2));
+  const a = tokens(texto); let mejor = null, score = 0;
+  Object.keys(state.mezclas).forEach(k=>{
+    const b = tokens(k); let comunes = 0; a.forEach(w=>{ if(b.has(w)) comunes++; });
+    const sc = comunes / Math.max(1, Math.min(a.size, b.size));
+    if(sc > score){ score = sc; mejor = k; }
+  });
+  return score >= 0.7 ? mejor : null;
+}
+/* Saca los datos de recolección del texto leído (remisiones de ARGOS, CEMEX y otras) */
+function leerDatosRemision(texto){
+  const t = String(texto||''), T = normTxt(t), compacto = T.replace(/\s+/g,'');
+  const d = {};
+  // concretera
+  if(compacto.includes('CEMEX')) d.concretera = 'CEMEX';
+  else if(compacto.includes('ARGOS')) d.concretera = 'ARGOS';
+  else {
+    const c = state.concreteras.find(n=>n.length>=5 && compacto.includes(normTxt(n).replace(/\s+/g,'')));
+    if(c) d.concretera = c;
+  }
+  // remisión: CEMEX trae "FB2500…"; ARGOS "REMISION No. 51221967"
+  let m = compacto.match(/F[B8](\d{10,14})/);
+  if(m) d.numeroRemision = 'FB' + m[1];
+  else if((m = T.match(/REMI[A-Z]*\.?\s*(?:N[O0°º]\.?)?\s*[:.]?\s*(\d{6,12})/))) d.numeroRemision = m[1];
+  // fecha (dd/mm/aaaa), solo si es razonable
+  if((m = t.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2})/))){
+    const iso = `${m[3]}-${pad2(m[2])}-${pad2(m[1])}`, dt = parseISO(iso), hoy = parseISO(todayISO());
+    if(!isNaN(dt) && dt <= addDays(hoy,1) && dt >= addDays(hoy,-120)) d.fechaFundida = iso;
+  }
+  // hora: llegada a obra (mejor) o salida de planta
+  if((m = T.match(/(?:HLLD|LLEGADA)[^0-9]{0,15}(\d{1,2})[:.](\d{2})/))){ d.horaToma = pad2(m[1])+':'+m[2]; d.horaFuente = 'llegada'; }
+  else if((m = T.match(/SALIDA\s*(?:DE\s*)?PLANTA[^0-9]{0,8}(\d{1,2})[:.](\d{2})/))){ d.horaToma = pad2(m[1])+':'+m[2]; d.horaFuente = 'salida'; }
+  if(d.horaToma && !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.horaToma)){ delete d.horaToma; delete d.horaFuente; }
+  // producto / mezcla
+  const limpiar = s => s.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9 .,\/"()°%+\-]/g,' ').replace(/\s+/g,' ')
+                        .replace(/^[\d\s\-.,]+(?=[A-Za-zÁÉÍÓÚÑ])/,'').replace(/(\s+\S{1,2})+$/,'').trim();
+  let prod = '';
+  if((m = t.match(/Descripci[oó]n\s*(?:del\s*)?Producto\s*[:.]\s*([^\n]+)/i))) prod = limpiar(m[1]);
+  if(!/\d/.test(prod)){
+    const linea = t.split('\n').map(limpiar).find(l => /\d+\s*D[IÍ]AS|\d\s*PSI|PSI|\bMIL\b/i.test(l) && /[A-Za-z]{4,}/.test(l) && !/DESCRIPCI/i.test(l));
+    if(linea) prod = linea;
+  }
+  if(prod){
+    prod = prod.replace(/\s*\d+\s*DE\s*ASENTAMIENTO.*$/i, '')            // CEMEX: el asentamiento viene en la misma línea
+               .replace(/(\d{4,5})\s*P\s*S\s*[I1L|]?(?![A-Z])/i, '$1PSI');   // "3000PS" -> "3000PSI"
+    const corte = prod.match(/^(.*?\d{4,5}PSI(?:\s+TM\s*\d+(?:\/\d+)?\s*["”]?)?)/i); // tras la resistencia suele venir ruido
+    if(corte) prod = corte[1].trim();
+    const cat = mezclaDelCatalogo(prod);
+    d.codigoMezcla = cat || prod; d.mezclaDelCatalogo = !!cat;
+    const P = normTxt(prod), nums = {TRES:3,CUATRO:4,CINCO:5,SEIS:6,SIETE:7,OCHO:8,NUEVE:9,DIEZ:10};
+    let psi = 0;
+    if((m = P.match(/(\d{4,5})\s*PSI/))) psi = Number(m[1]);
+    else if((m = P.match(/\b(TRES|CUATRO|CINCO|SEIS|SIETE|OCHO|NUEVE|DIEZ)\s*MIL\b/))) psi = nums[m[1]]*1000;
+    if(psi) d.resistenciaNominalMpa = Math.floor(psi/142);   // misma conversión del catálogo (4000 psi = 28 MPa)
+    else if((m = P.match(/(\d{2,3})\s*MPA/))) d.resistenciaNominalMpa = Number(m[1]);
+    else if(cat && state.mezclas[cat].resistencia) d.resistenciaNominalMpa = state.mezclas[cat].resistencia;
+  }
+  // asentamiento: "8 DE ASENTAMIENTO (8")" (pulgadas) o "Asentamiento: 150" (mm)
+  let as = null;
+  if((m = T.match(/(\d+(?:[.,]\d+)?)\s*DE\s*ASENTAMIENTO/))) as = Number(m[1].replace(',','.'));
+  else if((m = T.match(/ASENTAMIENTO\s*[:.]?\s*(\d+(?:[.,]\d+)?)\b/))) as = Number(m[1].replace(',','.'));
+  if(as){
+    if(as > 0 && as <= 12){ d.asentamientoPulgadas = as; d.asentamientoMm = Math.round(as*25.4); }
+    else if(as >= 25 && as <= 300){ d.asentamientoMm = Math.round(as); }
+  }
+  return d;
+}
+async function leerRemisionOCR(file, muestraId){
+  const token = ++ocrToken;
+  ocrEstado = { id: muestraId, token, estado: 'leyendo' };
+  actualizarOcrUI();
+  try{
+    await cargarTesseract();
+    const worker = await Tesseract.createWorker('spa', 1, { workerPath: OCR_CDN.workerPath, corePath: OCR_CDN.corePath, langPath: OCR_CDN.langPath });
+    let datos;
+    try{
+      datos = leerDatosRemision((await worker.recognize(await imagenParaOcr(file, 0))).data.text);
+      // El OCR es sensible a cómo se prepara la foto: si faltó la remisión o salió poco,
+      // una segunda pasada con otro contraste completa lo que falte.
+      const principales = ['concretera','numeroRemision','fechaFundida','codigoMezcla','resistenciaNominalMpa','asentamientoMm'];
+      if(!datos.numeroRemision || principales.filter(k=>datos[k]!==undefined).length < 4){
+        const otra = leerDatosRemision((await worker.recognize(await imagenParaOcr(file, 1.8))).data.text);
+        Object.keys(otra).forEach(k=>{ if(datos[k]===undefined) datos[k] = otra[k]; });
+      }
+    }finally{ worker.terminate(); }
+    if(!ocrEstado || ocrEstado.token !== token) return; // llegó otra foto o se cerró
+    ocrEstado = { id: muestraId, token, estado: 'listo', datos };
+  }catch(err){
+    console.warn('leerRemisionOCR', err);
+    if(!ocrEstado || ocrEstado.token !== token) return;
+    ocrEstado = { id: muestraId, token, estado: 'error', error: err.message || 'error desconocido' };
+  }
+  actualizarOcrUI();
+}
+function camposOcr(dt){
+  const c = [];
+  if(dt.concretera) c.push({ k:'concretera', l:'Concretera', v:escapeHtml(dt.concretera), on:true });
+  if(dt.numeroRemision) c.push({ k:'numeroRemision', l:'Remisión', v:escapeHtml(dt.numeroRemision), on:true });
+  if(dt.fechaFundida) c.push({ k:'fechaFundida', l:'Fecha', v:fmtDateHuman(dt.fechaFundida), on:true });
+  if(dt.horaToma) c.push({ k:'horaToma', l:'Hora', v:`${dt.horaToma}<small>${dt.horaFuente==='llegada' ? 'llegada a obra' : 'salida de planta: revisa si es la de la toma'}</small>`, on: dt.horaFuente==='llegada' });
+  if(dt.codigoMezcla) c.push({ k:'codigoMezcla', l:'Mezcla', v:`${escapeHtml(dt.codigoMezcla)}${dt.mezclaDelCatalogo ? '<small>del catálogo</small>' : ''}`, on:true });
+  if(dt.resistenciaNominalMpa) c.push({ k:'resistenciaNominalMpa', l:'Resistencia', v:`${dt.resistenciaNominalMpa} MPa`, on:true });
+  if(dt.asentamientoMm) c.push({ k:'asentamiento', l:'Asentamiento', v:`${dt.asentamientoPulgadas ? dt.asentamientoPulgadas+'" = ' : ''}${dt.asentamientoMm} mm`, on:true });
+  return c;
+}
+function renderOcrBlock(){
+  if(!ocrEstado || ocrEstado.id !== draft.id) return '';
+  if(ocrEstado.estado === 'leyendo'){
+    return `<div class="foto-status"><span class="foto-spinner"></span> Leyendo la remisión… Puede tardar unos segundos (la primera vez descarga el lector, ~10 MB).</div>`;
+  }
+  if(ocrEstado.estado === 'error'){
+    return `<div class="foto-status foto-error">⚠ No pude leer la remisión: ${escapeHtml(ocrEstado.error)}
+      <button type="button" class="btn btn-outline btn-sm" data-ocr-descartar style="margin-left:6px;">Cerrar</button></div>`;
+  }
+  const campos = camposOcr(ocrEstado.datos || {});
+  if(!campos.length){
+    return `<div class="foto-status">📄 No encontré datos legibles en la foto. Llénalos a mano (o toma otra foto más de cerca y derecha).
+      <button type="button" class="btn btn-outline btn-sm" data-ocr-descartar style="margin-left:6px;">Cerrar</button></div>`;
+  }
+  return `<div class="ocr-box">
+    <div class="ocr-title">📄 Leí esto de la remisión — marca lo que esté bien</div>
+    ${campos.map(c=>`<label class="ocr-row"><input type="checkbox" data-ocr-campo="${c.k}" ${c.on?'checked':''}><span class="ocr-l">${c.l}</span><span class="ocr-v">${c.v}</span></label>`).join('')}
+    <div class="ocr-actions">
+      <button type="button" class="btn btn-primary btn-sm" data-ocr-aplicar style="flex:1;">Usar estos datos</button>
+      <button type="button" class="btn btn-outline btn-sm" data-ocr-descartar>Descartar</button>
+    </div>
+  </div>`;
+}
+function aplicarDatosOcr(){
+  if(!ocrEstado || ocrEstado.estado !== 'listo') return;
+  syncDraftFromDOM();
+  const dt = ocrEstado.datos, marcados = new Set(Array.from(document.querySelectorAll('[data-ocr-campo]:checked')).map(el=>el.dataset.ocrCampo));
+  if(marcados.has('concretera')) draft.concretera = dt.concretera;
+  if(marcados.has('numeroRemision')) draft.numeroRemision = dt.numeroRemision;
+  if(marcados.has('fechaFundida')) draft.fechaFundida = dt.fechaFundida;
+  if(marcados.has('horaToma')) draft.horaToma = dt.horaToma;
+  if(marcados.has('codigoMezcla')){ draft.codigoMezcla = dt.codigoMezcla; autofillFromMezcla(dt.codigoMezcla); }
+  if(marcados.has('resistenciaNominalMpa')) draft.resistenciaNominalMpa = dt.resistenciaNominalMpa;
+  if(marcados.has('asentamiento')){ draft.asentamientoMm = dt.asentamientoMm; draft.asentamientoPulgadas = dt.asentamientoPulgadas || ''; }
+  ocrEstado = null;
+  render();
+  showToast(marcados.size ? `Listo: ${marcados.size} dato${marcados.size===1?'':'s'} de la remisión. Revisa antes de guardar.` : 'No marcaste ningún dato.');
+}
+function actualizarOcrUI(){
+  const ae = document.activeElement;
+  const escribiendo = ae && (ae.tagName==='TEXTAREA' || (ae.tagName==='INPUT' && ae.type!=='file' && ae.type!=='checkbox'));
+  if(escribiendo){
+    const box = document.getElementById('ocrBox');
+    if(box) box.innerHTML = renderOcrBlock();
+    return;
+  }
+  syncDraftFromDOM();
+  render();
+}
+
+/* =========================================================
    FOTOS PENDIENTES: si la subida se corta (señal, Safari en segundo plano),
    la foto queda guardada en el celular (IndexedDB) y se reintenta sola.
    ========================================================= */
@@ -2288,6 +2508,7 @@ function bindEvents(){
         return;
       }
       await encolarFoto(muestraId, dataUrl, nombreFotoRemision(dataUrl));
+      leerRemisionOCR(file, muestraId);
     });
   }
 
@@ -2385,7 +2606,7 @@ function bindEvents(){
       persist('muestras');
       draft = blankMuestra();
       editingId = null;
-      fotoErrorLocal = null;
+      fotoErrorLocal = null; ocrEstado = null;
       wizStep = 0;
       render();
       syncPush();
@@ -2540,6 +2761,10 @@ document.getElementById('app').addEventListener('click', async (e)=>{
     if(fotoPendientes[draft.id]) await quitarFotoPendiente(draft.id);
     else draft.fotoRemisionUrl = '';
     render();
+  }else if(e.target.closest('[data-ocr-aplicar]')){
+    aplicarDatosOcr();
+  }else if(e.target.closest('[data-ocr-descartar]')){
+    ocrEstado = null; actualizarOcrUI();
   }else if(e.target.closest('#btnReintentarFoto')){
     if(fotoPendientes[draft.id]){ fotoPendientes[draft.id].ultimoError = ''; procesarFotosPendientes(); }
     else{ fotoErrorLocal = null; const input = document.getElementById('fileFotoRemision'); if(input) input.click(); }
