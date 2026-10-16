@@ -787,6 +787,27 @@ function blankMuestra(){
   };
 }
 
+/* Clave de acceso de quien usa ESTE celular. No se sincroniza: el script la
+   valida y devuelve el nombre de la persona (para "Solicita <nombre>"). */
+const CLAVE_KEY = 'sgs_cilindros_acceso_v1';
+let acceso = loadJSON(CLAVE_KEY, { clave: '', usuario: '' });
+function guardarAcceso(){ saveJSON(CLAVE_KEY, acceso); }
+function urlConClave(url){
+  return acceso.clave ? url + (url.includes('?') ? '&' : '?') + 'clave=' + encodeURIComponent(acceso.clave) : url;
+}
+/* Observación de la solicitud para el Excel: "Solicita <quien usa este celular>"
+   más las notas generales de la obra (sin un "Solicita …" viejo). */
+function observacionesSolicitudExport(){
+  const general = String(state.config.observacionesSolicitud||'');
+  if(!acceso.usuario) return general;
+  const resto = general.replace(/^\s*Solicita\b[^.;\n]*[.;]?\s*/i, '').trim();
+  return [`Solicita ${acceso.usuario}`, resto].filter(Boolean).join('. ');
+}
+function renderAvisoClave(){
+  if(!state.config.sheetUrl || state.sync.status!=='error' || !/clave/i.test(state.sync.lastError||'')) return '';
+  return `<div class="foto-status foto-error" style="margin:0 0 14px;">🔑 ${acceso.clave ? 'La clave de acceso de este celular no es válida.' : 'Falta la clave de acceso de este celular.'} Escríbela en Configuración (pídesela a quien administra la app).</div>`;
+}
+
 let draft = blankMuestra();
 let editingId = null;
 let fotoSubiendoId = null;   // muestra cuya foto se está subiendo en este momento
@@ -799,7 +820,7 @@ let fotoErrorLocal = null;   // {id, msg}: la foto no se pudo abrir/comprimir
 function render(){
   const app = document.getElementById('app');
   const scrollY = window.scrollY;
-  app.innerHTML = '<a class="mode-switch" href="index.html">← Volver a la versión normal</a>' + renderFormCard() +
+  app.innerHTML = renderAvisoClave() + '<a class="mode-switch" href="index.html">← Volver a la versión normal</a>' + renderFormCard() +
                    renderSummaryBar() + renderBuscadorCard() + renderListCard() + renderExportCard() + renderHistorialCard() +
                    renderConfigCard() + renderCatalogosCard();
   bindEvents();
@@ -870,6 +891,11 @@ function renderConfigCard(){
         <span class="lbl">URL del Web App</span>
         <input type="text" id="cfgSheetUrl" value="${escapeHtml(c.sheetUrl)}" placeholder="https://script.google.com/macros/s/.../exec">
       </label>
+      <label class="field">
+        <span class="lbl">Clave de acceso (cada persona tiene la suya; se guarda solo en este celular)</span>
+        <input type="text" id="cfgClave" value="${escapeHtml(acceso.clave)}" placeholder="Pídesela a quien administra la app" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </label>
+      ${acceso.usuario ? `<div class="card-hint" style="margin-top:0;">👤 Conectado como <b>${escapeHtml(acceso.usuario)}</b>: las solicitudes salen "Solicita ${escapeHtml(acceso.usuario)}".</div>` : ''}
       ${syncStatusLine()}
       <div class="btn-row" style="margin-top:10px;">
         <button class="btn btn-outline btn-sm" id="btnSyncNow">🔄 Sincronizar ahora</button>
@@ -1301,6 +1327,8 @@ function fichaMuestra(m){
     ${fila('Material', [e(m.tipoMaterial), e(m.codigoDimension)].filter(Boolean).join(' · '))}
     ${fila('Cilindros', totalCilindrosDe(m) ? `${totalCilindrosDe(m)} (${edadesTexto(m)})` : '')}
     ${fila('Recolección', m.fechaRecoleccion ? fechaLegible(m.fechaRecoleccion) : '')}
+    ${fila('Registró', e(m.registradoPor))}
+    ${fila('Envió', m.enviadoPor ? e(m.enviadoPor) + (m.fechaEnviado ? ' · ' + e(String(m.fechaEnviado).slice(0,16)) : '') : '')}
     ${fila('Notas', e(m.observacionesMuestra))}
     ${fila('Remisión foto', m.fotoRemisionUrl ? `<a href="${e(m.fotoRemisionUrl)}" target="_blank" rel="noopener">Ver foto</a>` : '')}
   </div>`;
@@ -1482,7 +1510,7 @@ function buildExportRows(list){
   const rows = [PLANTILLA_HEADERS];
   list.forEach(m=>{
     rows.push([
-      c.codigoObra, c.servicioEnvio, fmtDateDMY(m.fechaRecoleccion), c.email, c.telefono, c.contacto, c.observacionesSolicitud,
+      c.codigoObra, c.servicioEnvio, fmtDateDMY(m.fechaRecoleccion), c.email, c.telefono, c.contacto, observacionesSolicitudExport(),
       m.numeroMuestra, fmtDateDMY(m.fechaFundida), m.horaToma, m.tipoMaterial, m.codigoDimension, m.numeroRemision,
       m.concretera, m.codigoMezcla, numOrBlank(m.asentamientoMm), numOrBlank(m.resistenciaNominalMpa), m.localizacion,
       numOrBlank(m.dia1), numOrBlank(m.dia3), numOrBlank(m.dia7), numOrBlank(m.dia14), numOrBlank(m.dia28), numOrBlank(m.dia56),
@@ -1575,7 +1603,7 @@ function buildPlantillaRowXml(rowIndex, values){
 function muestraToPlantillaRow(config, m){
   return [
     config.codigoObra, config.servicioEnvio, m.fechaRecoleccion, config.email,
-    (config.telefono||'').replace(/\D/g,''), config.contacto, config.observacionesSolicitud,
+    (config.telefono||'').replace(/\D/g,''), config.contacto, observacionesSolicitudExport(),
     m.numeroMuestra, m.fechaFundida, m.horaToma, m.tipoMaterial, m.codigoDimension, m.numeroRemision,
     m.concretera, m.codigoMezcla, numOrBlank(m.asentamientoMm), numOrBlank(m.resistenciaNominalMpa), m.localizacion,
     numOrBlank(m.dia1), numOrBlank(m.dia3), numOrBlank(m.dia7), numOrBlank(m.dia14), numOrBlank(m.dia28), numOrBlank(m.dia56),
@@ -2070,7 +2098,7 @@ async function uploadFotoRemision(dataUrl, fileName){
   const commaIdx = dataUrl.indexOf(',');
   const mimeType = dataUrl.slice(5, commaIdx).split(';')[0] || 'image/jpeg';
   const base64 = dataUrl.slice(commaIdx+1);
-  const payload = { action:'uploadPhoto', fileData: base64, fileName: fileName || ('remision_'+Date.now()+'.jpg'), mimeType };
+  const payload = { action:'uploadPhoto', clave: acceso.clave, fileData: base64, fileName: fileName || ('remision_'+Date.now()+'.jpg'), mimeType };
   let data, lastErr;
   try{
     data = await postViaHiddenForm(url, payload, 40000);
@@ -2399,15 +2427,16 @@ async function syncPull(){
   setSyncStatus('syncing'); render();
   let data, lastErr;
   try{
-    data = await jsonp(url, 20000);
+    data = await jsonp(urlConClave(url), 20000);
   }catch(err){
     console.warn('syncPull: JSONP falló, probando fetch directo', err);
     lastErr = err;
-    try{ data = await fetchGetJson(url, 20000); }
+    try{ data = await fetchGetJson(urlConClave(url), 20000); }
     catch(err2){ lastErr = err2; }
   }
   try{
     if(!data || data.ok===false) throw new Error((data && data.error) || (lastErr && lastErr.message) || 'respuesta inválida');
+    if(data.usuario !== undefined && data.usuario !== acceso.usuario){ acceso.usuario = data.usuario || ''; guardarAcceso(); }
     if(Array.isArray(data.muestras)){
       const normalizados = data.muestras.map(normalizeRemoteMuestra);
       state.muestras = mergeMuestras(state.muestras, normalizados);
@@ -2424,6 +2453,7 @@ async function syncPull(){
     syncPush(true);
   }catch(err){
     console.error('syncPull error', err);
+    if(/clave/i.test(err.message||'') && acceso.usuario){ acceso.usuario = ''; guardarAcceso(); }
     setSyncStatus('error', describeSyncError(err));
     render();
   }
@@ -2433,8 +2463,9 @@ function normalizeRemoteMuestra(r){
   const m = { ...blankMuestra(), ...r };
   ['dia1','dia3','dia7','dia14','dia28','dia56','testigo28','testigo56','cantidadOtroDia','asentamientoMm','resistenciaNominalMpa','updatedAt']
     .forEach(k=>{ m[k] = r[k]===''||r[k]==null ? (k==='updatedAt'?0:'') : Number(r[k]); });
-  m.eliminado = r.eliminado===true || r.eliminado==='TRUE' || r.eliminado===1 || r.eliminado==='1';
-  m.archivado = r.archivado===true || r.archivado==='TRUE' || r.archivado===1 || r.archivado==='1';
+  const verdadero = v => v===true || v===1 || String(v).toUpperCase()==='TRUE' || v==='1';
+  m.eliminado = verdadero(r.eliminado);
+  m.archivado = verdadero(r.archivado);
   m.id = String(r.id);
   return m;
 }
@@ -2444,6 +2475,7 @@ async function syncPush(silent){
   if(!url) return;
   if(!silent){ setSyncStatus('syncing'); render(); }
   const payload = {
+    clave: acceso.clave,
     config: Object.fromEntries(SYNC_CONFIG_KEYS.map(k=>[k, state.config[k]])),
     muestras: state.muestras
   };
@@ -2504,11 +2536,14 @@ function bindEvents(){
         observacionesSolicitud: document.getElementById('cfgObs').value.trim(),
         sheetUrl: document.getElementById('cfgSheetUrl').value.trim()
       };
+      const claveNueva = document.getElementById('cfgClave').value.trim();
+      const cambioClave = claveNueva !== acceso.clave;
+      if(cambioClave){ acceso = { clave: claveNueva, usuario: '' }; guardarAcceso(); }
       persist('config');
       showToast('Configuración guardada.');
       render();
       const d = document.getElementById('cfgDetails'); if(d) d.open = true;
-      if(state.config.sheetUrl && state.config.sheetUrl!==prevUrl){ syncPull(); }
+      if(state.config.sheetUrl && (state.config.sheetUrl!==prevUrl || cambioClave)){ syncPull(); }
       else { syncPush(); }
     });
   }
@@ -2692,6 +2727,7 @@ function bindEvents(){
         if(idx>-1) state.muestras[idx] = muestra;
         showToast('Muestra actualizada.');
       }else{
+        muestra.registradoPor = acceso.usuario || '';   // el servidor lo confirma con la clave
         state.muestras.push(muestra);
         showToast('Muestra agregada.');
       }
@@ -2774,7 +2810,7 @@ function bindEvents(){
       const hoy = todayISO();
       const ids = new Set(items.map(m=>m.id));
       state.muestras.forEach(m=>{
-        if(ids.has(m.id)){ m.archivado = true; m.loteId = loteId; m.fechaExportLote = hoy; m.updatedAt = Date.now(); }
+        if(ids.has(m.id)){ m.archivado = true; m.loteId = loteId; m.fechaExportLote = hoy; m.updatedAt = Date.now(); m.enviadoPor = acceso.usuario || ''; }
       });
       persist('muestras');
       showToast('Enviada. ¡Lista para la siguiente!');
