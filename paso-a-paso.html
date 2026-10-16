@@ -312,7 +312,8 @@
   .foto-status a{color:var(--orange-dark); font-weight:700; text-decoration:none;}
   .foto-status.foto-ok{background:var(--green-soft); border-color:var(--green);}
   .foto-status.foto-error{background:var(--red-soft); border-color:var(--red); color:var(--red);}
-  .ocr-box{border:2px solid var(--navy); border-radius:var(--radius-sm); padding:10px 12px; margin:-6px 0 12px; background:var(--surface);}
+  .ocr-box{border:2px solid var(--navy); border-radius:var(--radius-sm); padding:10px 12px; margin:0 0 12px; background:var(--surface);}
+  .wiz #ocrBox .foto-status{margin:0 0 12px;}
   .ocr-title{font-weight:800; font-size:14px; color:var(--navy); margin-bottom:6px;}
   .ocr-row{display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--border); font-size:15px; cursor:pointer;}
   .ocr-row:last-of-type{border-bottom:none;}
@@ -936,7 +937,7 @@ const WIZ_STEPS = [
         ${cameraIconSvg(30)} ${draft.fotoRemisionUrl || fotoPendientes[draft.id] ? 'Foto lista · tomar otra' : 'Tomar foto y leer remisión'}
       </button>
       <input type="file" id="fileFotoRemision" accept="image/*" style="display:none;">
-      <div id="fotoStatusBox">${renderFotoRemisionBlock()}</div><div id="ocrBox">${renderOcrBlock()}</div>`
+      <div id="fotoStatusBox">${renderFotoRemisionBlock()}</div>`
   },
   {
     title:'Concretera',
@@ -1114,6 +1115,7 @@ function renderFormCard(){
       <summary>✓ ${wizStep} ${wizStep===1?'dato listo':'datos listos'} · ver o cambiar</summary>
       ${done}
     </details>`}
+    <div id="ocrBox">${renderOcrBlock()}</div>
     <div class="wiz-step">
       ${step.body()}
       <div class="wiz-nav${isLast?' last':''}">
@@ -2153,6 +2155,7 @@ async function leerRemisionOCR(file, muestraId){
     }finally{ worker.terminate(); }
     if(!ocrEstado || ocrEstado.token !== token) return; // llegó otra foto o se cerró
     ocrEstado = { id: muestraId, token, estado: 'listo', datos };
+    if(wizStep !== 1) showToast('📄 Ya leí la remisión: revisa los datos arriba.');
   }catch(err){
     console.warn('leerRemisionOCR', err);
     if(!ocrEstado || ocrEstado.token !== token) return;
@@ -2207,7 +2210,8 @@ function aplicarDatosOcr(){
   if(marcados.has('asentamiento')){ draft.asentamientoMm = dt.asentamientoMm; draft.asentamientoPulgadas = dt.asentamientoPulgadas || ''; }
   ocrEstado = null;
   render();
-  showToast(marcados.size ? `Listo: ${marcados.size} dato${marcados.size===1?'':'s'} de la remisión. Revisa antes de guardar.` : 'No marcaste ningún dato.');
+  const nombres = camposOcr(dt).filter(c=>marcados.has(c.k)).map(c=>c.l.toLowerCase());
+  showToast(marcados.size ? `Llené: ${nombres.join(', ')}. Los verás en cada paso; revisa antes de guardar.` : 'No marcaste ningún dato.');
 }
 function actualizarOcrUI(){
   const ae = document.activeElement;
