@@ -312,6 +312,11 @@
   .foto-status a{color:var(--orange-dark); font-weight:700; text-decoration:none;}
   .foto-status.foto-ok{background:var(--green-soft); border-color:var(--green);}
   .foto-status.foto-error{background:var(--red-soft); border-color:var(--red); color:var(--red);}
+  .aviso-clave{margin:0 0 14px; padding:12px; border:2px solid var(--red); border-radius:var(--radius-sm); background:var(--red-soft);}
+  .aviso-clave .ak-titulo{font-weight:800; color:#7F1D1D; font-size:15px; margin-bottom:8px;}
+  .aviso-clave .ak-fila{display:flex; gap:8px;}
+  .aviso-clave .ak-fila input{flex:1; min-width:0; font-size:17px; font-weight:700; border:2px solid #7F1D1D;}
+  .aviso-clave .ak-nota{font-size:12.5px; color:#7F1D1D; margin-top:8px;}
   .fallo-box{margin:4px 0 12px;}
   .fallo-row{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;
     padding:8px 10px; margin-bottom:6px; border-radius:var(--radius-sm); border:1.5px solid var(--red);
@@ -805,7 +810,14 @@ function observacionesSolicitudExport(){
 }
 function renderAvisoClave(){
   if(!state.config.sheetUrl || state.sync.status!=='error' || !/clave/i.test(state.sync.lastError||'')) return '';
-  return `<div class="foto-status foto-error" style="margin:0 0 14px;">🔑 ${acceso.clave ? 'La clave de acceso de este celular no es válida.' : 'Falta la clave de acceso de este celular.'} Escríbela en Configuración (pídesela a quien administra la app).</div>`;
+  return `<div class="aviso-clave">
+    <div class="ak-titulo">🔑 ${acceso.clave ? 'La clave de este celular no es válida.' : 'Falta la clave de acceso de este celular.'}</div>
+    <div class="ak-fila">
+      <input type="text" id="avisoClaveInput" placeholder="Escribe aquí tu clave" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+      <button type="button" class="btn btn-primary" data-guardar-clave>Guardar</button>
+    </div>
+    <div class="ak-nota">Pídesela a quien administra la app. Mientras tanto puedes seguir registrando: todo queda guardado en este celular y se envía al Sheet cuando pongas la clave.</div>
+  </div>`;
 }
 
 let draft = blankMuestra();
@@ -2889,6 +2901,12 @@ document.getElementById('app').addEventListener('click', async (e)=>{
     if(fotoPendientes[draft.id]) await quitarFotoPendiente(draft.id);
     else draft.fotoRemisionUrl = '';
     render();
+  }else if(e.target.closest('[data-guardar-clave]')){
+    const clave = (document.getElementById('avisoClaveInput')?.value || '').trim();
+    if(!clave){ showToast('Escribe la clave primero.'); return; }
+    acceso = { clave, usuario: '' }; guardarAcceso();
+    showToast('Verificando la clave…');
+    syncPull(); // si es válida: queda "Conectado como …" y se envía lo registrado en este celular
   }else if(e.target.closest('[data-fix-edad]')){
     const [campo, edad] = e.target.closest('[data-fix-edad]').dataset.fixEdad.split('|');
     syncDraftFromDOM();
