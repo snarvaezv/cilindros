@@ -312,6 +312,13 @@
   .foto-status a{color:var(--orange-dark); font-weight:700; text-decoration:none;}
   .foto-status.foto-ok{background:var(--green-soft); border-color:var(--green);}
   .foto-status.foto-error{background:var(--red-soft); border-color:var(--red); color:var(--red);}
+  .fallo-box{margin:4px 0 12px;}
+  .fallo-row{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;
+    padding:8px 10px; margin-bottom:6px; border-radius:var(--radius-sm); border:1.5px solid var(--red);
+    background:var(--red-soft); color:#7F1D1D; font-size:13.5px; font-weight:600;}
+  .fallo-row.suave{border-color:var(--orange); background:var(--orange-soft); color:#7C2D12;}
+  .fallo-muestra{margin:0 0 6px;}
+  .fallo-muestra > b{display:block; font-size:13px; margin-bottom:4px;}
   .ocr-box{border:2px solid var(--navy); border-radius:var(--radius-sm); padding:10px 12px; margin:-6px 0 12px; background:var(--surface);}
   .ocr-title{font-weight:800; font-size:14px; color:var(--navy); margin-bottom:6px;}
   .ocr-row{display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--border); font-size:15px; cursor:pointer;}
@@ -478,7 +485,9 @@ function isHoliday(d){ return colombiaHolidaySet(d.getFullYear()).has(fmtDateISO
 /* Recolección (servicio contratado, diario y sin costo):
    - si la solicitud se monta antes de las 12:00, se recoge el siguiente día hábil;
    - después de las 12:00, el día hábil siguiente a ese;
-   - el laboratorio no recoge ni falla domingos ni festivos (sí sábados). */
+   - el laboratorio no recoge ni falla domingos ni festivos (sí sábados);
+   - la recolección además tiene que caer en día de trabajo de la obra
+     (sábado solo si en Configuración se indica que la obra trabaja sábados). */
 const HORA_CORTE_RECOLECCION = 12;
 function esDiaHabilLab(d){ return d.getDay()!==0 && !isHoliday(d); }
 function siguienteDiaHabil(d){
@@ -486,10 +495,13 @@ function siguienteDiaHabil(d){
   while(!esDiaHabilLab(r) && guard < 10){ r = addDays(r, 1); guard++; }
   return r;
 }
+function esDiaRecoleccion(d){ return esDiaHabilLab(d) && (d.getDay()!==6 || !!state.config.trabajaSabado); }
 function fechaMinimaRecoleccion(ahora){
   ahora = ahora || new Date();
   let d = siguienteDiaHabil(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()));
   if(ahora.getHours() >= HORA_CORTE_RECOLECCION) d = siguienteDiaHabil(d);
+  let guard = 0;
+  while(!esDiaRecoleccion(d) && guard < 10){ d = addDays(d, 1); guard++; }
   return fmtDateISO(d);
 }
 function suggestFechaRecoleccion(){ return fechaMinimaRecoleccion(); }
@@ -503,11 +515,63 @@ function textoReloj(){
   }
   return `🕒 Son las ${hora}: ya pasó el corte de las 12:00. Lo más pronto que se puede recoger es el <b>${min}</b>.`;
 }
+/* Fechas de fallo (fundida + edad) frente a la recolección: los cilindros tienen
+   que llegar al laboratorio antes de fallarlos, y el laboratorio no falla
+   domingos ni festivos. */
+const EDAD_DE_CAMPO = { dia1:1, dia3:3, dia7:7, dia14:14, dia28:28, dia56:56, testigo28:28, testigo56:56 };
+const CAMPO_DE_EDAD = { 1:'dia1', 3:'dia3', 7:'dia7', 14:'dia14', 28:'dia28', 56:'dia56' };
+function edadesDe(m){
+  const l = AGE_FIELDS.map(f=>({ campo:f.key, label:f.label, edad:EDAD_DE_CAMPO[f.key], cant:Number(m[f.key])||0 }));
+  if(Number(m.otroDia) > 0) l.push({ campo:'otro', label:'Día '+Number(m.otroDia), edad:Number(m.otroDia), cant:Number(m.cantidadOtroDia)||0 });
+  return l.filter(e=>e.cant > 0);
+}
+function edadPosible(m, edad){ // primer día de fallo posible: después de la recolección y día hábil del laboratorio
+  const fund = parseISO(String(m.fechaFundida).slice(0,10)), rec = parseISO(m.fechaRecoleccion);
+  let f = addDays(fund, edad);
+  if(f <= rec) f = addDays(rec, 1);
+  let guard = 0;
+  while(!esDiaHabilLab(f) && guard < 10){ f = addDays(f, 1); guard++; }
+  return Math.round((f - fund) / 86400000);
+}
+function problemasFallo(m){
+  if(!/^\d{4}-\d{2}-\d{2}/.test(String(m.fechaFundida||'')) || !/^\d{4}-\d{2}-\d{2}$/.test(String(m.fechaRecoleccion||''))) return [];
+  const fund = parseISO(String(m.fechaFundida).slice(0,10)), rec = m.fechaRecoleccion;
+  return edadesDe(m).map(e=>{
+    const fISO = fmtDateISO(addDays(fund, e.edad)), fd = parseISO(fISO);
+    let tipo = '', msg = '';
+    if(fISO < rec){ tipo = 'antes'; msg = `${e.label}: se fallaría el ${fmtDateHuman(fISO)}, antes de la recolección (${fmtDateHuman(rec)}).`; }
+    else if(!esDiaHabilLab(fd)){ tipo = 'nohabil'; msg = `${e.label}: se fallaría el ${fmtDateHuman(fISO)}${fd.getDay()===0 ? '' : ' (festivo)'} y el laboratorio no falla ${fd.getDay()===0 ? 'domingos' : 'festivos'}.`; }
+    else if(fISO === rec){ tipo = 'mismo'; msg = `${e.label}: se fallaría el mismo día de la recolección (${fmtDateHuman(rec)}); confírmalo con el laboratorio.`; }
+    else return null;
+    const sugerida = edadPosible(m, e.edad);
+    return { ...e, tipo, msg, sugerida: sugerida !== e.edad && !e.campo.startsWith('testigo') ? sugerida : null };
+  }).filter(Boolean);
+}
+/* Pasa los cilindros de una edad a otra (a su casilla de la plantilla o a "Otro día") */
+function cambiarEdad(o, campo, nueva){
+  const cant = campo==='otro' ? Number(o.cantidadOtroDia)||0 : Number(o[campo])||0;
+  if(!cant || !nueva) return false;
+  const quitar = () => { if(campo==='otro'){ o.otroDia = ''; o.cantidadOtroDia = 0; } else o[campo] = 0; };
+  if(CAMPO_DE_EDAD[nueva]){ quitar(); o[CAMPO_DE_EDAD[nueva]] = (Number(o[CAMPO_DE_EDAD[nueva]])||0) + cant; return true; }
+  if(campo==='otro'){ o.otroDia = nueva; return true; }
+  if(!(Number(o.cantidadOtroDia) > 0) || Number(o.otroDia) === nueva){
+    quitar(); o.otroDia = nueva; o.cantidadOtroDia = (Number(o.cantidadOtroDia)||0) + cant; return true;
+  }
+  return false; // "Otro día" ya está ocupado con otra edad
+}
+function avisosFalloHtml(m, idMuestra){
+  const ps = problemasFallo(m);
+  if(!ps.length) return '';
+  return `<div class="fallo-box">${ps.map(p=>`<div class="fallo-row ${p.tipo==='mismo'?'suave':''}"><span>⚠ ${escapeHtml(p.msg)}</span>${p.sugerida ? `
+    <button type="button" class="btn btn-outline btn-sm" ${idMuestra ? `data-fix-muestra="${escapeHtml(idMuestra)}|${p.campo}|${p.sugerida}"` : `data-fix-edad="${p.campo}|${p.sugerida}"`}>Cambiar a día ${p.sugerida}</button>` : ''}</div>`).join('')}</div>`;
+}
+
 /* Aviso bajo la fecha elegida: domingo/festivo, ya no alcanza, u ok */
 function avisoFechaRecoleccion(f){
   if(!f) return '';
   const d = parseISO(f), min = fechaMinimaRecoleccion();
   if(!esDiaHabilLab(d)) return `<b style="color:var(--red);">⚠ ${d.getDay()===0 ? 'Es domingo' : 'Es festivo'}: el laboratorio no recoge ese día.</b>`;
+  if(!esDiaRecoleccion(d)) return `<b style="color:var(--red);">⚠ Es sábado y la obra no trabaja sábados (se cambia en Configuración).</b>`;
   if(f < min) return `<b style="color:var(--red);">⚠ Esa fecha ya no alcanza: lo más pronto es el ${fmtDateHuman(min)}.</b>`;
   return f === min ? '✓ Es la fecha más pronta posible.' : 'Fecha posterior a la más pronta: está bien si así lo quieres.';
 }
@@ -657,6 +721,13 @@ function renderConfigCard(){
         <div class="chipset" id="cfgServicioEnvio">
           <button type="button" class="chip ${c.servicioEnvio==='SI'?'active':''}" data-val="SI">Sí</button>
           <button type="button" class="chip ${c.servicioEnvio==='NO'?'active':''}" data-val="NO">No</button>
+        </div>
+      </label>
+      <label class="field">
+        <span class="lbl">¿La obra trabaja los sábados? (para recoger cilindros)</span>
+        <div class="chipset" id="cfgSabado">
+          <button type="button" class="chip ${c.trabajaSabado?'active':''}" data-val="SI">Sí</button>
+          <button type="button" class="chip ${!c.trabajaSabado?'active':''}" data-val="NO">No</button>
         </div>
       </label>
       <label class="field">
@@ -879,6 +950,7 @@ function renderFormCard(){
     <div class="age-grid" id="ageGrid">
       ${AGE_FIELDS.map(ageBoxHtml).join('')}
     </div>
+    ${avisosFalloHtml(draft)}
     <div class="row2">
       <label class="field">
         <span class="lbl">Otro día (n.º)</span>
@@ -1024,6 +1096,7 @@ function renderListCard(){
       </div>
       <div class="muestra-tags">
         <span class="tag ${fechaRecoleccionConProblema(m.fechaRecoleccion) ? 'urgent' : ''}">→ ${fmtDateHuman(m.fechaRecoleccion)}${fechaRecoleccionConProblema(m.fechaRecoleccion) ? ' ⚠' : ''}</span>
+        ${problemasFallo(m).some(p=>p.tipo!=='mismo') ? '<span class="tag urgent">⚠ fecha de fallo</span>' : ''}
         <span class="tag">${escapeHtml(m.concretera||'-')}</span>
         <span class="tag">Asent. ${escapeHtml(String(m.asentamientoMm||'-'))} mm</span>
         <span class="tag">${escapeHtml(String(m.resistenciaNominalMpa||'-'))} MPa</span>
@@ -1042,7 +1115,7 @@ function renderListCard(){
 
 /* ---------- Generar solicitud / exportar ---------- */
 function fechaRecoleccionConProblema(f){
-  return !!f && (f < fechaMinimaRecoleccion() || !esDiaHabilLab(parseISO(f)));
+  return !!f && (f < fechaMinimaRecoleccion() || !esDiaRecoleccion(parseISO(f)));
 }
 function fechaRecoleccionSummary(list){
   const counts = {};
@@ -1077,6 +1150,7 @@ function renderExportCard(){
         ${g.fecha!=='sin-fecha' && fechaRecoleccionConProblema(g.fecha) ? `
           <div class="foto-status foto-error" style="margin:0 0 9px;">${avisoFechaRecoleccion(g.fecha)}
             <button type="button" class="btn btn-outline btn-sm" data-mover-fecha="${g.fecha}">Pasar al ${fmtDateHuman(fechaMinimaRecoleccion())}</button></div>` : ''}
+        ${g.items.map(m=>{ const h = avisosFalloHtml(m, m.id); return h ? `<div class="fallo-muestra"><b>Muestra #${escapeHtml(m.numeroMuestra||'?')}</b>${h}</div>` : ''; }).join('')}
         <div class="btn-row">
           <button class="btn btn-primary btn-sm" data-descargar-fecha="${g.fecha}" style="flex:1;">⬇ Descargar Excel</button>
           <button class="btn btn-outline btn-sm" data-copiar-fecha="${g.fecha}">📋 Copiar filas</button>
@@ -2138,6 +2212,15 @@ function bindEvents(){
       });
     });
   }
+  const cfgSabado = document.getElementById('cfgSabado');
+  if(cfgSabado){
+    cfgSabado.querySelectorAll('.chip').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        cfgSabado.querySelectorAll('.chip').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  }
   const btnSaveConfig = document.getElementById('btnSaveConfig');
   if(btnSaveConfig){
     btnSaveConfig.addEventListener('click', ()=>{
@@ -2145,6 +2228,7 @@ function bindEvents(){
       state.config = {
         codigoObra: document.getElementById('cfgCodigoObra').value.trim(),
         servicioEnvio: cfgServicio.querySelector('.chip.active')?.dataset.val || 'SI',
+        trabajaSabado: document.querySelector('#cfgSabado .chip.active')?.dataset.val === 'SI',
         email: document.getElementById('cfgEmail').value.trim(),
         telefono: document.getElementById('cfgTelefono').value.trim(),
         contacto: document.getElementById('cfgContacto').value.trim(),
@@ -2324,9 +2408,12 @@ function bindEvents(){
       if(total<=0){ showToast('Agrega al menos un cilindro por edad.'); return; }
       const errOtro = validarOtroDia();
       if(errOtro){ showToast(errOtro); return; }
-      if(draft.fechaRecoleccion && !esDiaHabilLab(parseISO(draft.fechaRecoleccion))){
-        showToast('El laboratorio no recoge domingos ni festivos. Cambia la fecha de recolección.'); return;
+      if(draft.fechaRecoleccion && !esDiaRecoleccion(parseISO(draft.fechaRecoleccion))){
+        showToast('Ese día no hay recolección (domingo, festivo o sábado sin trabajo en obra). Cambia la fecha.'); return;
       }
+      const graves = problemasFallo(draft).filter(p=>p.tipo!=='mismo');
+      if(graves.length && !confirm('Estas fechas de fallo no cuadran con la recolección:\n\n' +
+          graves.map(p=>'• '+p.msg).join('\n') + '\n\n¿Guardar de todas formas?')) return;
 
       const muestra = { ...draft, updatedAt: Date.now() };
       learnFromMuestra(muestra);
@@ -2495,6 +2582,18 @@ document.getElementById('app').addEventListener('click', async (e)=>{
     if(fotoPendientes[draft.id]) await quitarFotoPendiente(draft.id);
     else draft.fotoRemisionUrl = '';
     render();
+  }else if(e.target.closest('[data-fix-edad]')){
+    const [campo, edad] = e.target.closest('[data-fix-edad]').dataset.fixEdad.split('|');
+    syncDraftFromDOM();
+    if(cambiarEdad(draft, campo, Number(edad))){ render(); showToast(`Cambiado a día ${edad}.`); }
+    else showToast('"Otro día" ya tiene otra edad: cámbialo a mano.');
+  }else if(e.target.closest('[data-fix-muestra]')){
+    const [id, campo, edad] = e.target.closest('[data-fix-muestra]').dataset.fixMuestra.split('|');
+    const m = state.muestras.find(x=>x.id===id);
+    if(m && cambiarEdad(m, campo, Number(edad))){
+      m.updatedAt = Date.now(); persist('muestras'); render(); syncPush(true);
+      showToast(`Muestra #${m.numeroMuestra}: cambiado a día ${edad}. Descarga de nuevo el Excel.`);
+    }else showToast('"Otro día" ya tiene otra edad: edita la muestra a mano.');
   }else if(e.target.closest('[data-ocr-aplicar]')){
     aplicarDatosOcr();
   }else if(e.target.closest('[data-ocr-descartar]')){
@@ -2511,7 +2610,7 @@ document.getElementById('app').addEventListener('input', (e)=>{
   if(box) box.innerHTML = renderResultadosBusqueda(busqQuery);
 });
 document.getElementById('app').addEventListener('change', (e)=>{
-  if(e.target.id === 'fFechaRecoleccionMuestra'){ syncDraftFromDOM(); render(); } // actualiza el aviso de la fecha
+  if(e.target.id === 'fFechaRecoleccionMuestra' || e.target.id === 'fFecha'){ syncDraftFromDOM(); render(); } // actualiza avisos de fechas
 });
 setInterval(()=>{
   document.querySelectorAll('.reloj-recoleccion').forEach(el=>{ el.innerHTML = textoReloj(); });
