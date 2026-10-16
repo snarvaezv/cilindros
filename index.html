@@ -312,6 +312,16 @@
   .foto-status a{color:var(--orange-dark); font-weight:700; text-decoration:none;}
   .foto-status.foto-ok{background:var(--green-soft); border-color:var(--green);}
   .foto-status.foto-error{background:var(--red-soft); border-color:var(--red); color:var(--red);}
+  #claveOverlay{position:fixed; inset:0; z-index:200; background:rgba(15,23,42,.88); display:flex; align-items:center; justify-content:center; padding:16px;}
+  #claveOverlay .co-card{background:#fff; border-radius:16px; padding:22px 18px; width:100%; max-width:420px; text-align:center; border:3px solid #000;}
+  #claveOverlay .co-icono{font-size:40px;}
+  #claveOverlay h2{margin:6px 0 8px; font-size:24px; font-weight:800; color:#000;}
+  #claveOverlay .co-texto{font-size:17px; color:#1E293B; margin:0 0 14px;}
+  #claveOverlay input{font-size:22px; font-weight:700; text-align:center; padding:14px; border:3px solid #000; margin-bottom:10px;}
+  #claveOverlay .btn{font-size:20px; padding:14px;}
+  #claveOverlay .co-error{min-height:22px; margin:10px 0 0; font-weight:700; color:var(--red); font-size:16px;}
+  #claveOverlay .co-error.co-ok{color:var(--navy);}
+  #claveOverlay .co-nota{font-size:13px; color:#475569; margin:10px 0 0;}
   .aviso-clave{margin:0 0 14px; padding:12px; border:2px solid var(--red); border-radius:var(--radius-sm); background:var(--red-soft);}
   .aviso-clave .ak-titulo{font-weight:800; color:#7F1D1D; font-size:15px; margin-bottom:8px;}
   .aviso-clave .ak-fila{display:flex; gap:8px;}
@@ -682,16 +692,58 @@ function observacionesSolicitudExport(){
   const resto = general.replace(/^\s*Solicita\b[^.;\n]*[.;]?\s*/i, '').trim();
   return [`Solicita ${acceso.usuario}`, resto].filter(Boolean).join('. ');
 }
-function renderAvisoClave(){
-  if(!state.config.sheetUrl || state.sync.status!=='error' || !/clave/i.test(state.sync.lastError||'')) return '';
-  return `<div class="aviso-clave">
-    <div class="ak-titulo">🔑 ${acceso.clave ? 'La clave de este celular no es válida.' : 'Falta la clave de acceso de este celular.'}</div>
-    <div class="ak-fila">
-      <input type="text" id="avisoClaveInput" placeholder="Escribe aquí tu clave" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
-      <button type="button" class="btn btn-primary" data-guardar-clave>Guardar</button>
-    </div>
-    <div class="ak-nota">Pídesela a quien administra la app. Mientras tanto puedes seguir registrando: todo queda guardado en este celular y se envía al Sheet cuando pongas la clave.</div>
-  </div>`;
+/* Cuadro de clave a pantalla completa (no se puede cerrar). Bloquea la app si
+   el celular no tiene clave o si el Sheet la rechazó. Con una clave ya
+   validada y sin señal NO bloquea: se trabaja sin conexión y se sincroniza
+   después. Vive fuera de #app para no perder lo escrito al redibujar. */
+let verificandoClave = false;
+let mensajeClave = '';
+function claveRequerida(){
+  if(!state.config.sheetUrl) return false;
+  if(acceso.rechazada) return true;
+  return !acceso.clave && !acceso.sinClaveOk; // sinClaveOk: el script no pide clave (versión anterior)
+}
+function puedeSolicitar(){ // el Excel solo sale a nombre de una persona identificada
+  return !state.config.sheetUrl || !!acceso.usuario || !!acceso.sinClaveOk;
+}
+function actualizarOverlayClave(){
+  let ov = document.getElementById('claveOverlay');
+  if(!claveRequerida()){
+    if(ov){ ov.remove(); document.body.style.overflow = ''; }
+    return;
+  }
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'claveOverlay';
+    ov.innerHTML = `<div class="co-card">
+      <div class="co-icono">🔑</div>
+      <h2>Clave de acceso</h2>
+      <p class="co-texto" id="coTexto"></p>
+      <input type="text" id="coInput" placeholder="Escribe tu clave" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+      <button type="button" class="btn btn-primary btn-block" id="coEntrar">Entrar</button>
+      <p class="co-error" id="coError"></p>
+      <p class="co-nota">Cada persona tiene su clave: identifica quién solicita la recolección. Pídesela a quien administra la app. Se pide una sola vez en este celular.</p>
+    </div>`;
+    document.body.appendChild(ov);
+    const entrar = () => {
+      const clave = document.getElementById('coInput').value.trim();
+      if(!clave){ mensajeClave = 'Escribe la clave.'; actualizarOverlayClave(); return; }
+      acceso = { clave, usuario: '', rechazada: false }; guardarAcceso();
+      verificandoClave = true; mensajeClave = '';
+      actualizarOverlayClave();
+      syncPull();
+    };
+    ov.querySelector('#coEntrar').addEventListener('click', entrar);
+    ov.querySelector('#coInput').addEventListener('keydown', e=>{ if(e.key==='Enter') entrar(); });
+  }
+  document.body.style.overflow = 'hidden';
+  ov.querySelector('#coTexto').textContent = acceso.rechazada && acceso.clave && !mensajeClave && !verificandoClave
+    ? 'La clave guardada en este celular ya no es válida. Escribe la clave vigente para seguir.'
+    : 'Para usar la app en este celular escribe tu clave.';
+  const err = ov.querySelector('#coError');
+  err.textContent = verificandoClave ? 'Verificando…' : mensajeClave;
+  err.className = 'co-error' + (verificandoClave ? ' co-ok' : '');
+  ov.querySelector('#coEntrar').disabled = verificandoClave;
 }
 
 let draft = blankMuestra();
@@ -706,7 +758,7 @@ let fotoErrorLocal = null;   // {id, msg}: la foto no se pudo abrir/comprimir
 function render(){
   const app = document.getElementById('app');
   const scrollY = window.scrollY;
-  app.innerHTML = renderAvisoClave() + '<a href="paso-a-paso.html" style="display:block;text-align:center;margin:0 0 14px;padding:11px;border-radius:8px;border:1.5px dashed var(--orange);background:var(--orange-soft);color:var(--orange-dark);font-weight:700;text-decoration:none;">🧪 Probar el modo paso a paso (letra grande)</a>' + renderConfigCard() + renderCatalogosCard() + renderFormCard() +
+  app.innerHTML = '<a href="paso-a-paso.html" style="display:block;text-align:center;margin:0 0 14px;padding:11px;border-radius:8px;border:1.5px dashed var(--orange);background:var(--orange-soft);color:var(--orange-dark);font-weight:700;text-decoration:none;">🧪 Probar el modo paso a paso (letra grande)</a>' + renderConfigCard() + renderCatalogosCard() + renderFormCard() +
                    renderSummaryBar() + renderBuscadorCard() + renderListCard() + renderExportCard() + renderHistorialCard();
   bindEvents();
   window.scrollTo(0, scrollY);
@@ -2180,7 +2232,12 @@ async function syncPull(){
   }
   try{
     if(!data || data.ok===false) throw new Error((data && data.error) || (lastErr && lastErr.message) || 'respuesta inválida');
-    if(data.usuario !== undefined && data.usuario !== acceso.usuario){ acceso.usuario = data.usuario || ''; guardarAcceso(); }
+    if(data.usuario !== undefined && data.usuario !== acceso.usuario){ acceso.usuario = data.usuario || ''; }
+    acceso.rechazada = false;
+    acceso.sinClaveOk = data.usuario === undefined; // script anterior, sin claves
+    guardarAcceso();
+    if(verificandoClave && acceso.usuario) showToast(`Bienvenido, ${acceso.usuario}.`);
+    verificandoClave = false; mensajeClave = '';
     if(Array.isArray(data.muestras)){
       const normalizados = data.muestras.map(normalizeRemoteMuestra);
       state.muestras = mergeMuestras(state.muestras, normalizados);
@@ -2197,7 +2254,13 @@ async function syncPull(){
     syncPush(true);
   }catch(err){
     console.error('syncPull error', err);
-    if(/clave/i.test(err.message||'') && acceso.usuario){ acceso.usuario = ''; guardarAcceso(); }
+    if(/clave/i.test(err.message||'')){
+      acceso.usuario = ''; acceso.rechazada = true; guardarAcceso();
+      mensajeClave = verificandoClave ? 'Clave no válida. Revisa mayúsculas, minúsculas y símbolos.' : '';
+    }else if(verificandoClave){
+      mensajeClave = 'No hay conexión para verificar la clave. Revisa la señal e intenta de nuevo.';
+    }
+    verificandoClave = false;
     setSyncStatus('error', describeSyncError(err));
     render();
   }
@@ -2237,6 +2300,7 @@ async function syncPush(silent){
     setSyncStatus('ok');
   }catch(err){
     console.error('syncPush error', err);
+    if(/clave/i.test(err.message||'')){ acceso.usuario = ''; acceso.rechazada = true; guardarAcceso(); actualizarOverlayClave(); }
     setSyncStatus('error', describeSyncError(err));
   }
   if(!silent) render();
@@ -2281,7 +2345,7 @@ function bindEvents(){
       };
       const claveNueva = document.getElementById('cfgClave').value.trim();
       const cambioClave = claveNueva !== acceso.clave;
-      if(cambioClave){ acceso = { clave: claveNueva, usuario: '' }; guardarAcceso(); }
+      if(cambioClave){ acceso = { clave: claveNueva, usuario: '', rechazada: false }; guardarAcceso(); verificandoClave = !!claveNueva; }
       persist('config');
       showToast('Configuración guardada.');
       render();
@@ -2518,6 +2582,7 @@ function bindEvents(){
   }
   app.querySelectorAll('[data-descargar-fecha]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
+      if(!puedeSolicitar()){ showToast('Para generar la solicitud, este celular necesita una clave válida (identifica quién solicita).'); return; }
       const fecha = btn.dataset.descargarFecha;
       const items = itemsParaFecha(fecha);
       if(!items.length) return;
@@ -2536,6 +2601,7 @@ function bindEvents(){
   });
   app.querySelectorAll('[data-copiar-fecha]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(!puedeSolicitar()){ showToast('Para generar la solicitud, este celular necesita una clave válida (identifica quién solicita).'); return; }
       const items = itemsParaFecha(btn.dataset.copiarFecha);
       if(!items.length) return;
       copyTSVToClipboard(buildExportRows(items));
@@ -2589,6 +2655,7 @@ function bindEvents(){
   /* ----- Historial: reexportar ----- */
   app.querySelectorAll('[data-reexport]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
+      if(!puedeSolicitar()){ showToast('Para generar la solicitud, este celular necesita una clave válida (identifica quién solicita).'); return; }
       const h = getLotesHistorial().find(x=>x.id===btn.dataset.reexport);
       if(!h) return;
       try{
@@ -2619,6 +2686,7 @@ render = function(){
   if(openState.cat && document.getElementById('catDetails')) document.getElementById('catDetails').open = true;
   if(openState.hist && document.getElementById('histDetails')) document.getElementById('histDetails').open = true;
   if(openState.busq && document.getElementById('busqDetails')) document.getElementById('busqDetails').open = true;
+  actualizarOverlayClave();
 };
 
 /* =========================================================
@@ -2630,12 +2698,6 @@ document.getElementById('app').addEventListener('click', async (e)=>{
     if(fotoPendientes[draft.id]) await quitarFotoPendiente(draft.id);
     else draft.fotoRemisionUrl = '';
     render();
-  }else if(e.target.closest('[data-guardar-clave]')){
-    const clave = (document.getElementById('avisoClaveInput')?.value || '').trim();
-    if(!clave){ showToast('Escribe la clave primero.'); return; }
-    acceso = { clave, usuario: '' }; guardarAcceso();
-    showToast('Verificando la clave…');
-    syncPull(); // si es válida: queda "Conectado como …" y se envía lo registrado en este celular
   }else if(e.target.closest('[data-fix-edad]')){
     const [campo, edad] = e.target.closest('[data-fix-edad]').dataset.fixEdad.split('|');
     syncDraftFromDOM();
