@@ -2036,7 +2036,8 @@ function leerDatosRemision(texto){
   if(d.horaToma && !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.horaToma)){ delete d.horaToma; delete d.horaFuente; }
   // producto / mezcla
   const limpiar = s => s.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9 .,\/"()°%+\-]/g,' ').replace(/\s+/g,' ')
-                        .replace(/^[\d\s\-.,]+(?=[A-Za-zÁÉÍÓÚÑ])/,'').replace(/(\s+\S{1,2})+$/,'').trim();
+                        .replace(/^[\d\s\-.,]+(?=[A-Za-zÁÉÍÓÚÑ])/,'').trim()
+                        .replace(/(\s+\S{1,2})+$/, (cola, _, i, todo) => /\bTM\s*\d+(?:\/\d+)?\s*["”]?\s*$/i.test(todo) ? cola : '').trim();
   let prod = '';
   if((m = t.match(/Descripci[oó]n\s*(?:del\s*)?Producto\s*[:.]\s*([^\n]+)/i))) prod = limpiar(m[1]);
   if(!/\d/.test(prod)){
@@ -2048,9 +2049,13 @@ function leerDatosRemision(texto){
                .replace(/(\d{4,5})\s*P\s*S\s*[I1L|]?(?![A-Z])/i, '$1PSI');   // "3000PS" -> "3000PSI"
     const corte = prod.match(/^(.*?\d{4,5}PSI(?:\s+TM\s*\d+(?:\/\d+)?\s*["”]?)?)/i); // tras la resistencia suele venir ruido
     if(corte) prod = corte[1].trim();
-    const cat = mezclaDelCatalogo(prod);
-    // sin coincidencia en el catálogo se propone el texto leído (con cifras), pero sin marcar
-    d.codigoMezcla = cat || letrasACifras(prod); d.mezclaDelCatalogo = !!cat; d.mezclaLeida = prod.replace(/^.*?(?=[A-Za-zÁÉÍÓÚÑ]{4,})/, '');
+    // ARGOS: la mezcla va tal cual dice la remisión (sin buscar equivalente en el catálogo).
+    // Otras (CEMEX…): se traduce al código del catálogo; si no hay, se propone el texto sin marcar.
+    const talCual = d.concretera === 'ARGOS';
+    const cat = talCual ? null : mezclaDelCatalogo(prod);
+    d.mezclaLeida = prod.replace(/^.*?(?=[A-Za-zÁÉÍÓÚÑ]{4,})/, '');
+    d.codigoMezcla = cat || (talCual ? prod : letrasACifras(prod));
+    d.mezclaDelCatalogo = !!cat; d.mezclaTalCual = talCual;
     const psi = rasgosMezcla(prod).psi;
     if(cat && state.mezclas[cat].resistencia) d.resistenciaNominalMpa = state.mezclas[cat].resistencia;
     else if(psi) d.resistenciaNominalMpa = Math.floor(psi/142);   // misma conversión del catálogo (4000 psi = 28 MPa)
@@ -2099,9 +2104,9 @@ function camposOcr(dt){
   if(dt.numeroRemision) c.push({ k:'numeroRemision', l:'Remisión', v:escapeHtml(dt.numeroRemision), on:true });
   if(dt.fechaFundida) c.push({ k:'fechaFundida', l:'Fecha', v:fmtDateHuman(dt.fechaFundida), on:true });
   if(dt.horaToma) c.push({ k:'horaToma', l:'Hora', v:`${dt.horaToma}<small>${dt.horaFuente==='llegada' ? 'llegada a obra' : 'salida de planta: revisa si es la de la toma'}</small>`, on: dt.horaFuente==='llegada' });
-  if(dt.codigoMezcla) c.push({ k:'codigoMezcla', l:'Mezcla', on: !!dt.mezclaDelCatalogo,
-    v:`${escapeHtml(dt.codigoMezcla)}<small>${dt.mezclaDelCatalogo
-      ? 'del catálogo · leído: ' + escapeHtml(String(dt.mezclaLeida||'').slice(0,60))
+  if(dt.codigoMezcla) c.push({ k:'codigoMezcla', l:'Mezcla', on: !!(dt.mezclaDelCatalogo || dt.mezclaTalCual),
+    v:`${escapeHtml(dt.codigoMezcla)}<small>${dt.mezclaTalCual ? 'tal cual la remisión de ARGOS'
+      : dt.mezclaDelCatalogo ? 'del catálogo · leído: ' + escapeHtml(String(dt.mezclaLeida||'').slice(0,60))
       : 'no está en el catálogo: márcala solo si es una mezcla nueva'}</small>` });
   if(dt.resistenciaNominalMpa) c.push({ k:'resistenciaNominalMpa', l:'Resistencia', v:`${dt.resistenciaNominalMpa} MPa`, on:true });
   if(dt.asentamientoMm) c.push({ k:'asentamiento', l:'Asentamiento', v:`${dt.asentamientoPulgadas ? dt.asentamientoPulgadas+'" = ' : ''}${dt.asentamientoMm} mm`, on:true });
