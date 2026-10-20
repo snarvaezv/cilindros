@@ -2234,15 +2234,47 @@ function imagenParaOcr(file, contraste){
   });
 }
 function normTxt(t){ return String(t||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+/* Números en letras -> cifras ("SIETE MIL" -> 7000, "DOS MIL QUINIENTOS" -> 2500) */
+function letrasACifras(t){
+  const n = {DOS:2,TRES:3,CUATRO:4,CINCO:5,SEIS:6,SIETE:7,OCHO:8,NUEVE:9,DIEZ:10};
+  return normTxt(t).replace(/\b(DOS|TRES|CUATRO|CINCO|SEIS|SIETE|OCHO|NUEVE|DIEZ)\s+MI[L1I]?(\s+QUINIENTOS)?\b/g,
+    (_, a, b) => String(n[a]*1000 + (b ? 500 : 0)));
+}
+/* Rasgos de una mezcla: resistencia (psi), tamaño máximo, asentamiento (pulgadas), días */
+function rasgosMezcla(texto, esCatalogo){
+  const T = letrasACifras(texto), r = { palabras: new Set(T.split(/[^A-Z]+/)) };
+  let m;
+  if((m = T.match(/(\d{4,5})\s*P\s*S\s*[I1L]?(?![A-Z])/))) r.psi = Number(m[1]);
+  else if((m = T.match(/(?:^|[^\d\/-])(\d{4,5})(?![\d\/-])/)) && Number(m[1]) >= 1500 && Number(m[1]) <= 12000) r.psi = Number(m[1]);
+  if((m = T.match(/(?:^|[^\d\/])(?:A|TM\s*)?(1\/2|V2|12|3\/4|3\/8|1)\s*(?:P[UV]\w*G\w*|["”]|'')/))) r.tma = (m[1]==='V2' || m[1]==='12') ? '1/2' : m[1];
+  // Asentamiento en pulgadas: en la remisión se confía más en "AS20cm" (el OCR lee mal el paréntesis);
+  // en el catálogo manda el paréntesis, porque hay códigos como "AS15cm (8")".
+  const enCm = (m = T.match(/AS\s*(\d{1,2})\s*[CE]M/)) ? Math.round(Number(m[1]) / 2.54) : null;
+  const enPulg = (m = T.match(/\(\s*(\d{1,2})\s*["”']*\s*\)/)) ? Number(m[1]) : null;
+  r.as = esCatalogo ? (enPulg || enCm) : (enCm || enPulg);
+  if((m = T.match(/(\d{1,2})\s*D[I1]AS/))) r.dias = Number(m[1]);
+  return r;
+}
+/* Código de mezcla del catálogo que corresponde a lo leído en la remisión:
+   misma resistencia y lo más parecido en tamaño máximo, asentamiento y días.
+   Así "SUSTENTABLES SIETE MIL 1/2 Pulgada 28 DÍAS AS20cm(8")" queda como
+   "Alta Resistencia 7000 PSI A1/2 " 28 dias (8")". */
 function mezclaDelCatalogo(texto){
-  const tokens = t => new Set(normTxt(t).replace(/[^A-Z0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>=2));
-  const a = tokens(texto); let mejor = null, score = 0;
+  const a = rasgosMezcla(texto);
+  if(!a.psi) return null;
+  let mejor = null, best = -Infinity;
   Object.keys(state.mezclas).forEach(k=>{
-    const b = tokens(k); let comunes = 0; a.forEach(w=>{ if(b.has(w)) comunes++; });
-    const sc = comunes / Math.max(1, Math.min(a.size, b.size));
-    if(sc > score){ score = sc; mejor = k; }
+    const b = rasgosMezcla(k, true);
+    if(b.psi !== a.psi) return;
+    let sc = 0;
+    if(a.tma && b.tma) sc += a.tma === b.tma ? 2 : -2;
+    if(a.as && b.as) sc += a.as === b.as ? 2 : -1;
+    if(a.dias && b.dias && a.dias === b.dias) sc += 1;
+    ['LINEA','TREMIE','ANILLOS','ALTA'].forEach(w=>{ if(a.palabras.has(w) && b.palabras.has(w)) sc += 1; });
+    if(MEZCLAS_SEED[k]) sc += 0.5; // ante un empate, la mezcla oficial del catálogo
+    if(sc > best){ best = sc; mejor = k; }
   });
-  return score >= 0.7 ? mejor : null;
+  return mejor;
 }
 /* Saca los datos de recolección del texto leído (remisiones de ARGOS, CEMEX y otras) */
 function leerDatosRemision(texto){
@@ -2274,7 +2306,7 @@ function leerDatosRemision(texto){
   let prod = '';
   if((m = t.match(/Descripci[oó]n\s*(?:del\s*)?Producto\s*[:.]\s*([^\n]+)/i))) prod = limpiar(m[1]);
   if(!/\d/.test(prod)){
-    const linea = t.split('\n').map(limpiar).find(l => /\d+\s*D[IÍ]AS|\d\s*PSI|PSI|\bMIL\b/i.test(l) && /[A-Za-z]{4,}/.test(l) && !/DESCRIPCI/i.test(l));
+    const linea = t.split('\n').map(limpiar).find(l => /\d+\s*[DO0][IÍ1]AS|\d\s*PSI|PSI|\bMIL\b|\b(DOS|TRES|CUATRO|CINCO|SEIS|SIETE|OCHO|NUEVE|DIEZ)\s+MI|P[UV]\w{0,2}GADA/i.test(l) && /[A-Za-z]{4,}/.test(l) && !/DESCRIPCI/i.test(l));
     if(linea) prod = linea;
   }
   if(prod){
@@ -2283,14 +2315,12 @@ function leerDatosRemision(texto){
     const corte = prod.match(/^(.*?\d{4,5}PSI(?:\s+TM\s*\d+(?:\/\d+)?\s*["”]?)?)/i); // tras la resistencia suele venir ruido
     if(corte) prod = corte[1].trim();
     const cat = mezclaDelCatalogo(prod);
-    d.codigoMezcla = cat || prod; d.mezclaDelCatalogo = !!cat;
-    const P = normTxt(prod), nums = {TRES:3,CUATRO:4,CINCO:5,SEIS:6,SIETE:7,OCHO:8,NUEVE:9,DIEZ:10};
-    let psi = 0;
-    if((m = P.match(/(\d{4,5})\s*PSI/))) psi = Number(m[1]);
-    else if((m = P.match(/\b(TRES|CUATRO|CINCO|SEIS|SIETE|OCHO|NUEVE|DIEZ)\s*MIL\b/))) psi = nums[m[1]]*1000;
-    if(psi) d.resistenciaNominalMpa = Math.floor(psi/142);   // misma conversión del catálogo (4000 psi = 28 MPa)
-    else if((m = P.match(/(\d{2,3})\s*MPA/))) d.resistenciaNominalMpa = Number(m[1]);
-    else if(cat && state.mezclas[cat].resistencia) d.resistenciaNominalMpa = state.mezclas[cat].resistencia;
+    // sin coincidencia en el catálogo se propone el texto leído (con cifras), pero sin marcar
+    d.codigoMezcla = cat || letrasACifras(prod); d.mezclaDelCatalogo = !!cat; d.mezclaLeida = prod.replace(/^.*?(?=[A-Za-zÁÉÍÓÚÑ]{4,})/, '');
+    const psi = rasgosMezcla(prod).psi;
+    if(cat && state.mezclas[cat].resistencia) d.resistenciaNominalMpa = state.mezclas[cat].resistencia;
+    else if(psi) d.resistenciaNominalMpa = Math.floor(psi/142);   // misma conversión del catálogo (4000 psi = 28 MPa)
+    else if((m = normTxt(prod).match(/(\d{2,3})\s*MPA/))) d.resistenciaNominalMpa = Number(m[1]);
   }
   // asentamiento: "8 DE ASENTAMIENTO (8")" (pulgadas) o "Asentamiento: 150" (mm)
   let as = null;
@@ -2336,7 +2366,10 @@ function camposOcr(dt){
   if(dt.numeroRemision) c.push({ k:'numeroRemision', l:'Remisión', v:escapeHtml(dt.numeroRemision), on:true });
   if(dt.fechaFundida) c.push({ k:'fechaFundida', l:'Fecha', v:fmtDateHuman(dt.fechaFundida), on:true });
   if(dt.horaToma) c.push({ k:'horaToma', l:'Hora', v:`${dt.horaToma}<small>${dt.horaFuente==='llegada' ? 'llegada a obra' : 'salida de planta: revisa si es la de la toma'}</small>`, on: dt.horaFuente==='llegada' });
-  if(dt.codigoMezcla) c.push({ k:'codigoMezcla', l:'Mezcla', v:`${escapeHtml(dt.codigoMezcla)}${dt.mezclaDelCatalogo ? '<small>del catálogo</small>' : ''}`, on:true });
+  if(dt.codigoMezcla) c.push({ k:'codigoMezcla', l:'Mezcla', on: !!dt.mezclaDelCatalogo,
+    v:`${escapeHtml(dt.codigoMezcla)}<small>${dt.mezclaDelCatalogo
+      ? 'del catálogo · leído: ' + escapeHtml(String(dt.mezclaLeida||'').slice(0,60))
+      : 'no está en el catálogo: márcala solo si es una mezcla nueva'}</small>` });
   if(dt.resistenciaNominalMpa) c.push({ k:'resistenciaNominalMpa', l:'Resistencia', v:`${dt.resistenciaNominalMpa} MPa`, on:true });
   if(dt.asentamientoMm) c.push({ k:'asentamiento', l:'Asentamiento', v:`${dt.asentamientoPulgadas ? dt.asentamientoPulgadas+'" = ' : ''}${dt.asentamientoMm} mm`, on:true });
   return c;
@@ -3011,6 +3044,10 @@ setInterval(()=>{
 window.addEventListener('online', ()=>procesarFotosPendientes());
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') procesarFotosPendientes(); });
 setInterval(()=>{ if(Object.keys(fotoPendientes).length && navigator.onLine !== false) procesarFotosPendientes(); }, 45000);
+(function limpiarMezclasConLetras(){
+  const viejas = Object.keys(state.mezclas).filter(k=>/\b(DOS|TRES|CUATRO|CINCO|SEIS|SIETE|OCHO|NUEVE|DIEZ)\s+MIL\b/.test(normTxt(k)) && !MEZCLAS_SEED[k]);
+  if(viejas.length){ viejas.forEach(k=>delete state.mezclas[k]); persist('mezclas'); }
+})();
 (function migrarResultadosAntiguos(){
   try{
     const raw = localStorage.getItem('sgs_cilindros_resultados_v1');
