@@ -1638,20 +1638,39 @@ function muestraDesdeExport(g){
   if(otras.length > 1) m.observacionesMuestra = 'Otras edades: ' + otras.slice(1).map(([e,n])=>`${n} a día ${e}`).join(', ');
   return m;
 }
+/* Misma muestra: mismo número y misma remisión (o misma fecha de fundida si
+   alguna no tiene remisión). */
+function mismaMuestra(a, b){
+  if(normNumMuestra(a.numeroMuestra)!==normNumMuestra(b.numeroMuestra)) return false;
+  const ra = String(a.numeroRemision||'').trim(), rb = String(b.numeroRemision||'').trim();
+  return ra && rb ? ra===rb : String(a.fechaFundida||'').slice(0,10)===String(b.fechaFundida||'').slice(0,10);
+}
 function importarMuestrasSgs(grupos){
   let nuevas = 0, yaEstaban = 0;
   grupos.forEach(g=>{
     const m = muestraDesdeExport(g);
-    const existe = state.muestras.some(x => x.id===m.id || (!x.eliminado &&
-      normNumMuestra(x.numeroMuestra)===normNumMuestra(m.numeroMuestra) &&
-      (String(x.numeroRemision||'').trim() && m.numeroRemision
-        ? String(x.numeroRemision).trim()===m.numeroRemision
-        : String(x.fechaFundida||'').slice(0,10)===m.fechaFundida)));
+    const existe = state.muestras.some(x => x.id===m.id || (!x.eliminado && mismaMuestra(x, m)));
     if(existe){ yaEstaban++; return; }
     state.muestras.push(m); nuevas++;
   });
   if(nuevas){ persist('muestras'); syncPush(true); }
   return { nuevas, yaEstaban };
+}
+
+/* Si una muestra importada del export de SGS también está registrada en la
+   app (por ejemplo, el export se importó en un equipo que todavía no tenía
+   las muestras del celular), se deja solo la de la app, que tiene más datos
+   (hora, concretera, foto). La copia de SGS se marca como eliminada, y eso
+   se sincroniza: desaparece en todos los equipos. */
+function unificarDuplicadosSgs(){
+  const app = state.muestras.filter(m=>!m.eliminado && !esHistoricoSgs(m));
+  let n = 0;
+  state.muestras.forEach(m=>{
+    if(m.eliminado || !esHistoricoSgs(m)) return;
+    if(app.some(x=>mismaMuestra(x, m))){ m.eliminado = true; m.updatedAt = Date.now(); n++; }
+  });
+  if(n) persist('muestras');
+  return n;
 }
 
 function handleFileHistorico(file){
@@ -2361,6 +2380,8 @@ async function syncPull(){
       const normalizados = data.muestras.map(normalizeRemoteMuestra);
       state.muestras = mergeMuestras(state.muestras, normalizados);
       persist('muestras');
+      const unificadas = unificarDuplicadosSgs();
+      if(unificadas) console.info(`Unificadas ${unificadas} muestras repetidas (export de SGS + app).`);
     }
     if(data.config && typeof data.config==='object'){
       SYNC_CONFIG_KEYS.forEach(k=>{ if(data.config[k]!==undefined) state.config[k] = data.config[k]; });
@@ -2876,6 +2897,7 @@ setInterval(()=>{ if(Object.keys(fotoPendientes).length && navigator.onLine !== 
     localStorage.removeItem('sgs_cilindros_resultados_v1');
   }catch(e){ console.warn('migrarResultadosAntiguos', e); }
 })();
+unificarDuplicadosSgs();
 render();
 cargarFotosPendientes();
 if(state.config.sheetUrl){ syncPull(); }
