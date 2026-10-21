@@ -268,6 +268,18 @@
   .ficha-row .fl{flex:none; width:116px; color:var(--text-muted); font-weight:600; font-size:14px;}
   .ficha-row .fv{font-weight:700; color:var(--text); word-break:break-word;}
   .ficha-row .fv a{color:var(--orange-dark);}
+  /* resultados de laboratorio (los envía el Gestor de Supervisión) */
+  .res-box{margin-top:8px; border-top:2px solid var(--border); padding-top:8px;}
+  .res-title{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13px; font-weight:800; color:var(--navy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px;}
+  .res-row{display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); font-size:15px;}
+  .res-row:last-child{border-bottom:none;}
+  .res-edad{flex:none; width:96px; font-weight:800; color:var(--text);}
+  .res-edad small, .res-val small{display:block; font-weight:600; color:var(--text-muted); font-size:13px;}
+  .res-val{font-weight:700; color:var(--text);}
+  .res-val.bajo small{color:var(--red);}
+  .res-pie{font-size:12px; color:var(--text-muted); margin-top:4px;}
+  .badge.ok{background:var(--green-soft); color:var(--green);}
+  .badge.mal{background:var(--red-soft); color:var(--red);}
   .busq-import{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; padding-top:10px; border-top:1px dashed var(--border); font-size:13px; color:var(--text-muted);}
   .busq-count{font-size:13px; color:var(--text-muted); margin-top:10px; font-weight:600;}
 
@@ -728,7 +740,8 @@ const STORE_KEYS = {
   mezclas: 'sgs_cilindros_mezclas_v1',
   dimensiones: 'sgs_cilindros_dimensiones_v1',
   localizaciones: 'sgs_cilindros_localizaciones_v1',
-  sync: 'sgs_cilindros_sync_v1'
+  sync: 'sgs_cilindros_sync_v1',
+  resistencias: 'sgs_cilindros_resistencias_v1'
 };
 
 function loadJSON(key, fallback){
@@ -759,7 +772,8 @@ let state = {
   mezclas: loadJSON(STORE_KEYS.mezclas, MEZCLAS_SEED),
   dimensiones: loadJSON(STORE_KEYS.dimensiones, DIMENSIONES_POR_TIPO),
   localizaciones: loadJSON(STORE_KEYS.localizaciones, []),
-  sync: loadJSON(STORE_KEYS.sync, { lastSyncAt: 0, pendingCount: 0, status: 'idle', lastError: '' })
+  sync: loadJSON(STORE_KEYS.sync, { lastSyncAt: 0, pendingCount: 0, status: 'idle', lastError: '' }),
+  resistencias: loadJSON(STORE_KEYS.resistencias, []) // resultados de laboratorio (solo lectura, vienen del Sheet)
 };
 
 function persist(part){
@@ -767,7 +781,7 @@ function persist(part){
     config: STORE_KEYS.config, muestras: STORE_KEYS.muestras, historial: STORE_KEYS.historial,
     concreteras: STORE_KEYS.concreteras, mezclas: STORE_KEYS.mezclas,
     dimensiones: STORE_KEYS.dimensiones, localizaciones: STORE_KEYS.localizaciones,
-    sync: STORE_KEYS.sync
+    sync: STORE_KEYS.sync, resistencias: STORE_KEYS.resistencias
   };
   if(part){ saveJSON(map[part], state[part]); }
   else{ Object.keys(map).forEach(k => saveJSON(map[k], state[k])); }
@@ -1370,7 +1384,70 @@ function edadesTexto(m){
   if(Number(m.cantidadOtroDia)>0) partes.push(`${m.cantidadOtroDia} a día ${escapeHtml(String(m.otroDia||'?'))}`);
   return partes.join(', ');
 }
-function fichaMuestra(m){
+/* Resultados de laboratorio: los manda el Gestor de Supervisión (módulo
+   Trazabilidad) al Sheet, una fila por muestra y edad. Se unen con la
+   muestra de la app por número (y f'c si la muestra lo tiene). */
+function gruposResistencias(){
+  const g = {};
+  (state.resistencias||[]).forEach(r=>{
+    const k = normNumMuestra(r.muestra) + '|' + String(r.fcMpa||'');
+    (g[k] = g[k] || { muestra:r.muestra, fc:r.fcMpa, fechaVaciado:r.fechaVaciado, localizacion:r.localizacion,
+                      estadoFinal:r.estadoFinal, actualizado:r.actualizado, filas:[] }).filas.push(r);
+  });
+  return Object.values(g);
+}
+function resistenciasDe(m, grupos){
+  const n = normNumMuestra(m.numeroMuestra);
+  if(!n) return null;
+  const fc = Number(m.resistenciaNominalMpa)||0;
+  const mismos = grupos.filter(r=>normNumMuestra(r.muestra)===n);
+  return mismos.find(r=>fc && Number(r.fc)===fc) || (fc ? null : mismos[0]) || null;
+}
+function resultadosHtml(r){
+  if(!r || !r.filas.length) return '';
+  const filas = [...r.filas].sort((a,b)=>Number(a.edad)-Number(b.edad)).map(f=>{
+    const ens = String(f.ensayos||'').split(';').filter(Boolean).map(v=>Number(v).toFixed(1).replace('.',','));
+    const prom = f.promedio==='' || f.promedio==null ? '' : Number(f.promedio).toFixed(1).replace('.',',');
+    const pct = f.porcentaje==='' || f.porcentaje==null ? '' : Math.round(Number(f.porcentaje));
+    const bajo = (Number(f.edad)>=28 && pct!=='' && pct<100) || f.criterio==='ALERTA' || f.criterio==='N/C';
+    const bloque = f.bloque && f.bloque!=='otra' && String(f.bloque)!==String(f.edad) ? `en la columna de ${f.bloque} días` : '';
+    return `<div class="res-row"><span class="res-edad">${escapeHtml(String(f.edad))} ${Number(f.edad)===1?'día':'días'}<small>${bloque}</small></span>
+      <span class="res-val ${bajo?'bajo':''}">${ens.join(' · ')} MPa
+      <small>Promedio ${prom} MPa${pct!==''?` · ${pct}% de f'c`:''}${f.criterio?` · ${escapeHtml(f.criterio)}`:''}${bajo?' ⚠':''}</small></span></div>`;
+  }).join('');
+  const est = String(r.estadoFinal||'');
+  const badge = est ? `<span class="badge ${est==='Cumple'?'ok':(/no cumple/i.test(est)?'mal':'warn')}">${escapeHtml(est)}</span>` : '';
+  const act = r.actualizado ? `Actualizado ${escapeHtml(String(r.actualizado))} desde el control de resistencias.` : '';
+  return `<div class="res-box"><div class="res-title"><span>Resultados de laboratorio · ${escapeHtml(String(r.fc))} MPa</span>${badge}</div>${filas}<div class="res-pie">${act}</div></div>`;
+}
+function fichaMuestra(item){
+  if(item && item.soloExcel){
+    const r = item.r, e = v => escapeHtml(String(v==null?'':v).trim());
+    const fila = (l, v) => v ? `<div class="ficha-row"><span class="fl">${l}</span><span class="fv">${v}</span></div>` : '';
+    return `
+  <div class="ficha">
+    <div class="ficha-top"><span class="ficha-num">#${e(r.muestra)||'?'}</span><span class="badge">Del control de resistencias</span></div>
+    ${fila('Fundida', fechaLegible(r.fechaVaciado))}
+    ${fila('Elemento', e(r.localizacion))}
+    ${fila('Resistencia', r.fc ? e(r.fc)+' MPa' : '')}
+    ${resultadosHtml(r)}
+  </div>`;
+  }
+  const html = fichaMuestraApp(item.m);
+  const res = resultadosHtml(item.r);
+  return res ? html.replace(/<\/div>\s*$/, res + '</div>') : html;
+}
+function itemsBuscables(){
+  const grupos = gruposResistencias(), usados = new Set();
+  const items = state.muestras.filter(m=>!m.eliminado).map(m=>{
+    const r = resistenciasDe(m, grupos); if(r) usados.add(r);
+    return { m, r };
+  });
+  grupos.forEach(r=>{ if(!usados.has(r)) items.push({ soloExcel:true, r,
+    m:{ numeroMuestra:r.muestra, localizacion:r.localizacion, fechaFundida:r.fechaVaciado, resistenciaNominalMpa:r.fc } }); });
+  return items;
+}
+function fichaMuestraApp(m){
   const fila = (l, v) => v ? `<div class="ficha-row"><span class="fl">${l}</span><span class="fv">${v}</span></div>` : '';
   const e = v => escapeHtml(String(v==null?'':v).trim());
   const estado = esHistoricoSgs(m)
@@ -1401,12 +1478,12 @@ function renderResultadosBusqueda(q){
   q = String(q||'').trim();
   if(!q) return '';
   const qn = normNumMuestra(q), ql = q.toLowerCase();
-  const pool = state.muestras.filter(m=>!m.eliminado);
-  const exactas = pool.filter(m=>normNumMuestra(m.numeroMuestra)===qn);
-  const otras = pool.filter(m=>!exactas.includes(m) &&
-    [m.numeroMuestra, m.numeroRemision, m.localizacion, m.codigoMezcla, m.concretera]
+  const pool = itemsBuscables();
+  const exactas = pool.filter(it=>normNumMuestra(it.m.numeroMuestra)===qn);
+  const otras = pool.filter(it=>!exactas.includes(it) &&
+    [it.m.numeroMuestra, it.m.numeroRemision, it.m.localizacion, it.m.codigoMezcla, it.m.concretera]
       .some(v=>String(v==null?'':v).toLowerCase().includes(ql)));
-  const porFecha = (a,b)=> String(b.fechaFundida||'').localeCompare(String(a.fechaFundida||''));
+  const porFecha = (a,b)=> String(b.m.fechaFundida||'').localeCompare(String(a.m.fechaFundida||''));
   const todas = [...exactas.sort(porFecha), ...otras.sort(porFecha)];
   if(!todas.length){
     return `<div class="empty-state">No encontré "${escapeHtml(q)}".${state.config.sheetUrl ? '<br>Si se registró en otro celular, toca "🔄 Sincronizar ahora" en Configuración.' : ''}</div>`;
@@ -1422,7 +1499,7 @@ function renderBuscadorCard(){
       <span class="chev">›</span>
     </summary>
     <div class="details-body">
-      <p class="card-hint" style="margin-top:0;">Escribe el número (ej: 61), la remisión o el elemento. Busca en todas las muestras, también las ya enviadas.</p>
+      <p class="card-hint" style="margin-top:0;">Escribe el número (ej: 61), la remisión o el elemento. Busca en todas las muestras, también las ya enviadas, y muestra sus resultados de laboratorio cuando el Gestor ya los envió.</p>
       <input type="text" id="busqInput" value="${escapeHtml(busqQuery)}" placeholder="Ej: 061" autocomplete="off" autocapitalize="characters" enterkeyhint="search">
       <div id="busqResultados">${renderResultadosBusqueda(busqQuery)}</div>
       <div class="busq-import">
@@ -2544,6 +2621,10 @@ async function syncPull(){
     guardarAcceso();
     if(verificandoClave && acceso.usuario) showToast(`Bienvenido, ${acceso.usuario}.`);
     verificandoClave = false; mensajeClave = '';
+    if(Array.isArray(data.resistencias)){ // las escribe el Gestor (Trazabilidad); aquí solo se leen
+      state.resistencias = data.resistencias;
+      persist('resistencias');
+    }
     if(Array.isArray(data.muestras)){
       const normalizados = data.muestras.map(normalizeRemoteMuestra);
       state.muestras = mergeMuestras(state.muestras, normalizados);
