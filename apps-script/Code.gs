@@ -14,6 +14,14 @@
  *    guardaba) y escribe todo como texto para que Sheets no convierta
  *    fechas y horas.
  *
+ * VERSIÓN 3 (resistencias)
+ *  - Pestaña nueva "Resistencias": la llena el Gestor de Supervisión
+ *    (módulo Trazabilidad de Concretos) con los resultados de laboratorio
+ *    de cada muestra, una fila por muestra y edad. El Excel de resistencias
+ *    es la fuente: cada envío reemplaza la pestaña completa.
+ *  - La app la descarga junto con las muestras y el buscador muestra los
+ *    resultados (no los edita).
+ *
  * ⚠ LAS CLAVES SE ESCRIBEN SOLO AQUÍ, EN TU APPS SCRIPT.
  *   El repositorio de la app es público: nunca pongas las claves reales en
  *   GitHub. Este archivo del repositorio trae claves de ejemplo.
@@ -40,6 +48,13 @@ const CLAVES = {
 
 const SHEET_MUESTRAS = 'Muestras';
 const SHEET_CONFIG = 'Config';
+const SHEET_RESISTENCIAS = 'Resistencias';
+
+// Una fila por muestra y edad de ensayo (la escribe el Gestor de Supervisión).
+const RES_COLS = [
+  'muestra','fcMpa','fechaVaciado','localizacion','edad','bloque','ensayos',
+  'promedio','porcentaje','criterio','estadoFinal','actualizado','actualizadoPor'
+];
 
 const MUESTRA_COLS = [
   'id','numeroMuestra','fechaFundida','horaToma','tipoMaterial','codigoDimension',
@@ -61,7 +76,8 @@ function doGet(e) {
   try {
     const usuario = usuarioDe_(e && e.parameter && e.parameter.clave);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    result = { ok: true, usuario: usuario, config: readConfig_(ss), muestras: readRows_(ss, SHEET_MUESTRAS) };
+    result = { ok: true, usuario: usuario, config: readConfig_(ss), muestras: readRows_(ss, SHEET_MUESTRAS),
+               resistencias: ss.getSheetByName(SHEET_RESISTENCIAS) ? readRows_(ss, SHEET_RESISTENCIAS) : [] };
   } catch (err) {
     result = { ok: false, error: String(err.message || err) };
   }
@@ -78,6 +94,15 @@ function doPost(e) {
     const usuario = usuarioDe_(body.clave);
     if (body.action === 'uploadPhoto') {
       result = { ok: true, url: uploadPhoto_(body.fileData, body.fileName, body.mimeType) };
+    } else if (body.action === 'resistencias') {
+      const lock = LockService.getScriptLock();
+      lock.waitLock(20000);
+      try {
+        const n = writeResistencias_(SpreadsheetApp.getActiveSpreadsheet(), body.resistencias, usuario);
+        result = { ok: true, usuario: usuario, filas: n, updatedAt: new Date().toISOString() };
+      } finally {
+        lock.releaseLock();
+      }
     } else {
       const lock = LockService.getScriptLock();
       lock.waitLock(20000); // un guardado a la vez
@@ -149,6 +174,27 @@ function mergeMuestras_(ss, entrantes, usuario) {
   const rango = sh.getRange(1, 1, data.length, MUESTRA_COLS.length);
   rango.setNumberFormat('@'); // texto: que Sheets no convierta fechas ni horas
   rango.setValues(data);
+}
+
+/* ---------- resistencias (desde el Gestor de Supervisión) ---------- */
+
+function writeResistencias_(ss, filas, usuario) {
+  if (!Array.isArray(filas)) throw new Error('Faltan las resistencias.');
+  const ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  const data = [RES_COLS].concat(filas.map(function (f) {
+    return RES_COLS.map(function (c) {
+      if (c === 'actualizado') return ahora;
+      if (c === 'actualizadoPor') return usuario;
+      const v = f[c];
+      return (v === undefined || v === null) ? '' : String(v);
+    });
+  }));
+  const sh = getSheet_(ss, SHEET_RESISTENCIAS);
+  sh.clearContents();
+  const rango = sh.getRange(1, 1, data.length, RES_COLS.length);
+  rango.setNumberFormat('@');
+  rango.setValues(data);
+  return filas.length;
 }
 
 function esVerdadero_(v) { return v === true || v === 'TRUE' || v === 'true' || v === 1 || v === '1'; }
