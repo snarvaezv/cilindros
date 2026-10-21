@@ -21,6 +21,11 @@
  *    es la fuente: cada envío reemplaza la pestaña completa.
  *  - La app la descarga junto con las muestras y el buscador muestra los
  *    resultados (no los edita).
+ *  - Pestaña "Historico SGS": las muestras importadas del export de SGS
+ *    (las de antes de la app, para el buscador) van aparte. En "Muestras"
+ *    quedan solo las registradas en la app para despachar cilindros. La app
+ *    recibe las dos juntas, así que no cambia nada para ella. Al primer
+ *    guardado con esta versión, las del export se pasan solas de pestaña.
  *
  * ⚠ LAS CLAVES SE ESCRIBEN SOLO AQUÍ, EN TU APPS SCRIPT.
  *   El repositorio de la app es público: nunca pongas las claves reales en
@@ -47,6 +52,8 @@ const CLAVES = {
 };
 
 const SHEET_MUESTRAS = 'Muestras';
+const SHEET_HISTORICO = 'Historico SGS';
+const LOTE_HISTORICO = 'historico-sgs'; // loteId que pone la app a las muestras importadas del export de SGS
 const SHEET_CONFIG = 'Config';
 const SHEET_RESISTENCIAS = 'Resistencias';
 
@@ -76,7 +83,7 @@ function doGet(e) {
   try {
     const usuario = usuarioDe_(e && e.parameter && e.parameter.clave);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    result = { ok: true, usuario: usuario, config: readConfig_(ss), muestras: readRows_(ss, SHEET_MUESTRAS),
+    result = { ok: true, usuario: usuario, config: readConfig_(ss), muestras: readMuestras_(ss),
                resistencias: ss.getSheetByName(SHEET_RESISTENCIAS) ? readRows_(ss, SHEET_RESISTENCIAS) : [] };
   } catch (err) {
     result = { ok: false, error: String(err.message || err) };
@@ -131,8 +138,14 @@ function usuarioDe_(clave) {
 
 /* ---------- muestras: unir en vez de reescribir ---------- */
 
+/* Las dos pestañas de muestras juntas (como las ve la app). */
+function readMuestras_(ss) {
+  const historico = ss.getSheetByName(SHEET_HISTORICO) ? readRows_(ss, SHEET_HISTORICO) : [];
+  return readRows_(ss, SHEET_MUESTRAS).concat(historico);
+}
+
 function mergeMuestras_(ss, entrantes, usuario) {
-  const actuales = readRows_(ss, SHEET_MUESTRAS);
+  const actuales = readMuestras_(ss);
   const porId = {};
   const orden = [];
   actuales.forEach(function (m) { if (m.id !== '') { porId[m.id] = m; orden.push(m.id); } });
@@ -161,8 +174,17 @@ function mergeMuestras_(ss, entrantes, usuario) {
     porId[id] = nuevo;
   });
 
-  const sh = getSheet_(ss, SHEET_MUESTRAS);
-  const data = [MUESTRA_COLS].concat(orden.map(function (id) {
+  // Las del export de SGS a su pestaña; las de la app en "Muestras".
+  const deApp = orden.filter(function (id) { return porId[id].loteId !== LOTE_HISTORICO; });
+  const deSgs = orden.filter(function (id) { return porId[id].loteId === LOTE_HISTORICO; });
+  escribirMuestras_(getSheet_(ss, SHEET_MUESTRAS), deApp, porId);
+  if (deSgs.length || ss.getSheetByName(SHEET_HISTORICO)) {
+    escribirMuestras_(getSheet_(ss, SHEET_HISTORICO), deSgs, porId);
+  }
+}
+
+function escribirMuestras_(sh, ids, porId) {
+  const data = [MUESTRA_COLS].concat(ids.map(function (id) {
     const m = porId[id];
     return MUESTRA_COLS.map(function (c) {
       const v = m[c];
