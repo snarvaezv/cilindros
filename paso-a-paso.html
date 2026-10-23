@@ -543,7 +543,9 @@ const MEZCLAS_SEED = {
   "Concreto de linea 4000 1 pulg 28 dias AS15cm (8\")": {resistencia:28, tipoMaterial:"Concreto", dimension:"4\"x8\""},
   "Concreto Tremie 4000PSI 1 pulg 28 dias AS15cm (8\")": {resistencia:28, tipoMaterial:"Concreto", dimension:"4\"x8\""},
   "Alta Resistencia 7000 PSI A1/2 \" 28 dias (8\")": {resistencia:49, tipoMaterial:"Concreto", dimension:"4\"x8\""},
-  "Concreto 2500 Anillos": {resistencia:17, tipoMaterial:"Concreto", dimension:"4\"x8\""}
+  "Concreto 2500 Anillos": {resistencia:17, tipoMaterial:"Concreto", dimension:"4\"x8\""},
+  // CEMEX "CONCRETOS DE LINEA 6000 1/2 PULGADA 28 DIAS AS20CM(8")" se pide a SGS con este código
+  "C. LINEA 6000 1/2 Pulgada 28 DiAS AS20cm(8)": {resistencia:42, tipoMaterial:"Concreto", dimension:"4\"x8\""}
 };
 
 /* Plantilla oficial SGS real, embebida byte a byte, para generar el Excel
@@ -885,6 +887,11 @@ function actualizarOverlayClave(){
   err.className = 'co-error' + (verificandoClave ? ' co-ok' : '');
   ov.querySelector('#coEntrar').disabled = verificandoClave;
 }
+
+(function completarMezclasDeFabrica(){
+  const faltan = Object.keys(MEZCLAS_SEED).filter(k=>!state.mezclas[k]);
+  if(faltan.length){ faltan.forEach(k=>{ state.mezclas[k] = MEZCLAS_SEED[k]; }); persist('mezclas'); }
+})();
 
 let draft = blankMuestra();
 let editingId = null;
