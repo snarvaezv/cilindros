@@ -41,14 +41,26 @@
  *    Versión: "Nueva versión" > "Implementar". La URL /exec sigue igual.
  *    (Si es la primera vez: "Nueva implementación", tipo "Aplicación web",
  *    ejecutar como "Yo", acceso "Cualquier usuario".)
- * 6. En cada celular: Configuración > "Clave de acceso" > pega la clave de
- *    esa persona > Guardar configuración.
+ * 6. Cada celular pide la clave al abrir la app por primera vez.
+ *
+ * DOS TIPOS DE CLAVE
+ * - CLAVES: personas de ESTA obra. Entran a la app y leen/escriben este Sheet.
+ * - LICENCIAS: personas de OTROS proyectos. Solo entran a la app (no ven este
+ *   Sheet); en Configuración > "Obra conectada" pegan la URL y la clave del
+ *   Apps Script de su propia obra (una copia de este archivo en su Sheet).
  */
 
 // Clave -> nombre de quien solicita. Agrega o quita personas aquí.
 const CLAVES = {
   'CAMBIA-ESTA-CLAVE-1': 'Sebastián Narváez',
   'CAMBIA-ESTA-CLAVE-2': 'José Manuel Urbina'
+};
+
+// Personas de OTROS proyectos a quienes autorizas a usar la app (con el Sheet
+// de su propia obra). Con estas claves solo se entra a la app: NO ven ni
+// escriben los datos de este Sheet. Formato igual: 'clave': 'Nombre'.
+const LICENCIAS = {
+  // 'CAMBIA-ESTA-CLAVE-3': 'Nombre de la otra persona'
 };
 
 const SHEET_MUESTRAS = 'Muestras';
@@ -81,6 +93,15 @@ const PHOTOS_FOLDER_NAME = 'Registro de Cilindros - Fotos de remisión';
 function doGet(e) {
   let result;
   try {
+    if (e && e.parameter && e.parameter.soloValidar) {
+      // Validación del acceso a la app (celulares de esta u otras obras): solo el nombre, sin datos.
+      const clave = String(e.parameter.clave || '').trim();
+      const esDeObra = !!nombreDe_(CLAVES, clave);
+      const nombre = nombreDe_(CLAVES, clave) || nombreDe_(LICENCIAS, clave);
+      if (!nombre) throw new Error('Clave inválida o falta la clave de acceso.');
+      result = { ok: true, usuario: nombre, obra: esDeObra };
+      return e.parameter.callback ? jsonpOut_(e.parameter.callback, result) : jsonOut_(result);
+    }
     const usuario = usuarioDe_(e && e.parameter && e.parameter.clave);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     result = { ok: true, usuario: usuario, config: readConfig_(ss), muestras: readMuestras_(ss),
@@ -130,8 +151,14 @@ function doPost(e) {
   return jsonOut_(result);
 }
 
+function nombreDe_(mapa, clave) {
+  clave = String(clave || '').trim();
+  const nombre = clave && Object.prototype.hasOwnProperty.call(mapa, clave) ? mapa[clave] : '';
+  return typeof nombre === 'string' ? nombre : '';
+}
+
 function usuarioDe_(clave) {
-  const nombre = CLAVES[String(clave || '').trim()];
+  const nombre = nombreDe_(CLAVES, clave);
   if (!nombre) throw new Error('Clave inválida o falta la clave de acceso.');
   return nombre;
 }
