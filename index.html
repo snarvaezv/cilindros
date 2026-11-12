@@ -121,7 +121,7 @@
     display:block; font-size:12.5px; font-weight:600; color:var(--text-muted);
     margin-bottom:5px;
   }
-  input[type=text], input[type=number], input[type=date], input[type=time],
+  input[type=text], input[type=password], input[type=number], input[type=date], input[type=time],
   input[type=email], input[type=tel], select, textarea{
     width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:var(--radius-sm);
     background:var(--surface); color:var(--text); font-family:var(--font); font-size:16px;
@@ -334,6 +334,9 @@
   #claveOverlay .co-error{min-height:22px; margin:10px 0 0; font-weight:700; color:var(--red); font-size:16px;}
   #claveOverlay .co-error.co-ok{color:var(--navy);}
   #claveOverlay .co-nota{font-size:13px; color:#475569; margin:10px 0 0;}
+  #claveOverlay .co-ver{background:none; border:none; color:var(--navy); font-weight:700; font-size:15px; margin-top:8px; padding:8px; cursor:pointer;}
+  .ver-clave{display:flex; gap:8px; align-items:stretch;} .ver-clave input{flex:1; min-width:0;} .ver-clave button{flex:0 0 auto;}
+  .aviso-obra{margin:0 0 14px; padding:12px; border-radius:8px; border:2px solid var(--red); background:#FEF2F2; color:#991B1B; font-weight:700;}
   .aviso-clave{margin:0 0 14px; padding:12px; border:2px solid var(--red); border-radius:var(--radius-sm); background:var(--red-soft);}
   .aviso-clave .ak-titulo{font-weight:800; color:#7F1D1D; font-size:15px; margin-bottom:8px;}
   .aviso-clave .ak-fila{display:flex; gap:8px;}
@@ -632,15 +635,16 @@ function saveJSON(key, val){
   catch(e){ console.error('storage error', e); return false; }
 }
 
+const CONFIG_NUEVA = localStorage.getItem(STORE_KEYS.config) == null;
 let state = {
   config: loadJSON(STORE_KEYS.config, {
-    codigoObra: 'M-8534',
+    codigoObra: '',
     servicioEnvio: 'SI',
-    email: 'tgresidenteambarte@tierragrata.co',
-    telefono: '316 710 1443',
-    contacto: 'José Manuel Urbina',
+    email: '',
+    telefono: '',
+    contacto: '',
     observacionesSolicitud: '',
-    sheetUrl: 'https://script.google.com/macros/s/AKfycbyc4kHErMidR3-gkcbcB3OJ0NvUvSR34PCRHJhr5FMJh390PQ-vbVn-XLvQImBXngf6OQ/exec'
+    sheetUrl: ''   // se conecta al validar la clave (o en Configuración, otra obra)
   }),
   muestras: loadJSON(STORE_KEYS.muestras, []),
   historial: loadJSON(STORE_KEYS.historial, []),
@@ -692,35 +696,71 @@ function blankMuestra(){
   };
 }
 
-/* Clave de acceso de quien usa ESTE celular. No se sincroniza: el script la
-   valida y devuelve el nombre de la persona (para "Solicita <nombre>"). */
+/* Dos claves distintas, guardadas solo en este celular:
+   - LICENCIA: permiso para usar la app. Siempre se valida contra el script del
+     administrador (URL_LICENCIA), que solo responde el nombre, sin datos.
+   - OBRA (acceso): clave del Sheet conectado en Configuración. En el Sheet del
+     administrador, si está vacía, se usa la misma clave de la licencia. */
+const URL_LICENCIA = 'https://script.google.com/macros/s/AKfycbyc4kHErMidR3-gkcbcB3OJ0NvUvSR34PCRHJhr5FMJh390PQ-vbVn-XLvQImBXngf6OQ/exec';
+const LICENCIA_KEY = 'sgs_cilindros_licencia_v1';
 const CLAVE_KEY = 'sgs_cilindros_acceso_v1';
 let acceso = loadJSON(CLAVE_KEY, { clave: '', usuario: '' });
+let licencia = loadJSON(LICENCIA_KEY, null);
 function guardarAcceso(){ saveJSON(CLAVE_KEY, acceso); }
+function guardarLicencia(){ saveJSON(LICENCIA_KEY, licencia); }
+if(!licencia){ // migración: quien ya entraba con su clave al Sheet del administrador no la vuelve a escribir
+  licencia = { clave: '', usuario: '', ok: false, rechazada: false };
+  const urlAnterior = CONFIG_NUEVA ? URL_LICENCIA : state.config.sheetUrl;
+  if(acceso.clave && urlAnterior === URL_LICENCIA){
+    licencia = { clave: acceso.clave, usuario: acceso.usuario || '', ok: !!acceso.usuario && !acceso.rechazada, rechazada: !!acceso.rechazada };
+    acceso = { clave: '', usuario: acceso.usuario || '', rechazada: !!acceso.rechazada };
+    if(CONFIG_NUEVA){ state.config.sheetUrl = URL_LICENCIA; persist('config'); }
+    guardarAcceso();
+  }
+  guardarLicencia();
+}
+function esSheetAdministrador(){ return state.config.sheetUrl === URL_LICENCIA; }
+function claveObra(){ return acceso.clave || (esSheetAdministrador() ? licencia.clave : ''); }
+function usuarioActual(){ return acceso.usuario || licencia.usuario || ''; }
 function urlConClave(url){
-  return acceso.clave ? url + (url.includes('?') ? '&' : '?') + 'clave=' + encodeURIComponent(acceso.clave) : url;
+  const clave = claveObra();
+  return clave ? url + (url.includes('?') ? '&' : '?') + 'clave=' + encodeURIComponent(clave) : url;
 }
 /* Observación de la solicitud para el Excel: "Solicita <quien usa este celular>"
    más las notas generales de la obra (sin un "Solicita …" viejo). */
 function observacionesSolicitudExport(){
   const general = String(state.config.observacionesSolicitud||'');
-  if(!acceso.usuario) return general;
+  if(!usuarioActual()) return general;
   const resto = general.replace(/^\s*Solicita\b[^.;\n]*[.;]?\s*/i, '').trim();
-  return [`Solicita ${acceso.usuario}`, resto].filter(Boolean).join('. ');
+  return [`Solicita ${usuarioActual()}`, resto].filter(Boolean).join('. ');
 }
-/* Cuadro de clave a pantalla completa (no se puede cerrar). Bloquea la app si
-   el celular no tiene clave o si el Sheet la rechazó. Con una clave ya
-   validada y sin señal NO bloquea: se trabaja sin conexión y se sincroniza
-   después. Vive fuera de #app para no perder lo escrito al redibujar. */
+/* Cuadro de clave a pantalla completa (no se puede cerrar). Bloquea la app
+   mientras el celular no tenga una licencia validada o si fue revocada. Con
+   una licencia ya validada y sin señal NO bloquea. Vive fuera de #app para no
+   perder lo escrito al redibujar. */
 let verificandoClave = false;
 let mensajeClave = '';
-function claveRequerida(){
-  if(!state.config.sheetUrl) return false;
-  if(acceso.rechazada) return true;
-  return !acceso.clave && !acceso.sinClaveOk; // sinClaveOk: el script no pide clave (versión anterior)
-}
+function claveRequerida(){ return !licencia.ok; }
 function puedeSolicitar(){ // el Excel solo sale a nombre de una persona identificada
-  return !state.config.sheetUrl || !!acceso.usuario || !!acceso.sinClaveOk;
+  return licencia.ok && !!usuarioActual() && !(state.config.sheetUrl && acceso.rechazada);
+}
+async function validarLicencia(clave){
+  const url = URL_LICENCIA + '?soloValidar=1&clave=' + encodeURIComponent(clave);
+  let data;
+  try{ data = await jsonp(url, 20000); }
+  catch(err){ try{ data = await fetchGetJson(url, 20000); }catch(err2){ return { red: true }; } }
+  if(data && data.ok && data.usuario){
+    // script sin "soloValidar" (versión anterior): si devolvió muestras, la clave también es de esta obra
+    return { ok: true, usuario: String(data.usuario), obra: data.obra !== undefined ? !!data.obra : Array.isArray(data.muestras) };
+  }
+  if(data && data.ok === false && /clave/i.test(data.error||'')) return { rechazada: true };
+  return { red: true };
+}
+async function revisarLicencia(){ // al abrir: confirma en segundo plano que la licencia sigue vigente
+  if(!licencia.clave || verificandoClave) return;
+  const r = await validarLicencia(licencia.clave);
+  if(r.rechazada){ licencia.ok = false; licencia.rechazada = true; guardarLicencia(); actualizarOverlayClave(); }
+  else if(r.ok && (r.usuario !== licencia.usuario || !licencia.ok)){ licencia.usuario = r.usuario; licencia.ok = true; licencia.rechazada = false; guardarLicencia(); render(); }
 }
 function actualizarOverlayClave(){
   let ov = document.getElementById('claveOverlay');
@@ -735,25 +775,48 @@ function actualizarOverlayClave(){
       <div class="co-icono">🔑</div>
       <h2>Clave de acceso</h2>
       <p class="co-texto" id="coTexto"></p>
-      <input type="text" id="coInput" placeholder="Escribe tu clave" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+      <input type="password" id="coInput" placeholder="Escribe tu clave" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
       <button type="button" class="btn btn-primary btn-block" id="coEntrar">Entrar</button>
       <p class="co-error" id="coError"></p>
       <p class="co-nota">Cada persona tiene su clave: identifica quién solicita la recolección. Pídesela a quien administra la app. Se pide una sola vez en este celular.</p>
+      <button type="button" class="co-ver" id="coVer">👁 Mostrar clave</button>
     </div>`;
     document.body.appendChild(ov);
-    const entrar = () => {
+    const entrar = async () => {
+      if(verificandoClave) return;
       const clave = document.getElementById('coInput').value.trim();
       if(!clave){ mensajeClave = 'Escribe la clave.'; actualizarOverlayClave(); return; }
-      acceso = { clave, usuario: '', rechazada: false }; guardarAcceso();
       verificandoClave = true; mensajeClave = '';
       actualizarOverlayClave();
-      syncPull();
+      const r = await validarLicencia(clave);
+      verificandoClave = false;
+      if(r.ok){
+        const cambioPersona = licencia.clave && licencia.clave !== clave;
+        licencia = { clave, usuario: r.usuario, ok: true, rechazada: false }; guardarLicencia();
+        showToast(`Bienvenido, ${r.usuario}.`);
+        if(!state.config.sheetUrl && r.obra && CONFIG_NUEVA && !state.muestras.length){
+          state.config.sheetUrl = URL_LICENCIA; persist('config'); // persona de la obra del administrador
+        }
+        if(esSheetAdministrador() && !acceso.clave){
+          acceso = { clave: '', usuario: '', rechazada: false }; guardarAcceso();
+          render(); syncPull();
+        }else if(!state.config.sheetUrl){
+          render();
+          const d = document.getElementById('cfgDetails'); if(d){ d.open = true; d.scrollIntoView({block:'start'}); }
+          showToast(`Bienvenido, ${r.usuario}. Conecta el Sheet de tu obra en Configuración.`);
+        }else{ if(cambioPersona && !acceso.clave) acceso.usuario = ''; render(); }
+      }else{
+        mensajeClave = r.rechazada ? 'Clave no válida. Revisa mayúsculas, minúsculas y símbolos.'
+                                   : 'No hay conexión para verificar la clave. Revisa la señal e intenta de nuevo.';
+        actualizarOverlayClave();
+      }
     };
     ov.querySelector('#coEntrar').addEventListener('click', entrar);
     ov.querySelector('#coInput').addEventListener('keydown', e=>{ if(e.key==='Enter') entrar(); });
+    ov.querySelector('#coVer').addEventListener('click', ()=>{ const i = document.getElementById('coInput'); const ver = i.type === 'password'; i.type = ver ? 'text' : 'password'; document.getElementById('coVer').textContent = ver ? '🙈 Ocultar clave' : '👁 Mostrar clave'; });
   }
   document.body.style.overflow = 'hidden';
-  ov.querySelector('#coTexto').textContent = acceso.rechazada && acceso.clave && !mensajeClave && !verificandoClave
+  ov.querySelector('#coTexto').textContent = licencia.rechazada && !mensajeClave && !verificandoClave
     ? 'La clave guardada en este celular ya no es válida. Escribe la clave vigente para seguir.'
     : 'Para usar la app en este celular escribe tu clave.';
   const err = ov.querySelector('#coError');
@@ -794,6 +857,11 @@ function syncStatusLine(){
   const when = s.lastSyncAt ? new Date(s.lastSyncAt).toLocaleString('es-CO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : 'nunca';
   return `<div class="card-hint" style="margin-top:0;">✅ Sincronizado con Google Sheets · última vez: ${when}</div>`;
 }
+/* Lo que se escribe en Configuración y aún no se guarda sobrevive a los
+   redibujos (reloj, sincronización, fotos), para que no "salte" a lo guardado. */
+let cfgBorrador = {};
+function cfgValor(id, guardado){ return Object.prototype.hasOwnProperty.call(cfgBorrador, id) ? cfgBorrador[id] : (guardado ?? ''); }
+function cfgChip(id, guardado){ return Object.prototype.hasOwnProperty.call(cfgBorrador, id) ? cfgBorrador[id] : guardado; }
 function renderConfigCard(){
   const c = state.config;
   return `
@@ -806,56 +874,66 @@ function renderConfigCard(){
       <p class="card-hint">Estos datos se repiten en todas las filas de la plantilla SGS. Se guardan en este dispositivo.</p>
       <label class="field">
         <span class="lbl">Código de obra</span>
-        <input type="text" id="cfgCodigoObra" value="${escapeHtml(c.codigoObra)}" placeholder="Ej: M-8534 AMBARTE">
+        <input type="text" id="cfgCodigoObra" value="${escapeHtml(cfgValor('cfgCodigoObra', c.codigoObra))}" placeholder="Ej: M-8534 AMBARTE">
       </label>
       <div class="row2">
         <label class="field">
           <span class="lbl">Contacto</span>
-          <input type="text" id="cfgContacto" value="${escapeHtml(c.contacto)}" placeholder="Nombre">
+          <input type="text" id="cfgContacto" value="${escapeHtml(cfgValor('cfgContacto', c.contacto))}" placeholder="Nombre">
         </label>
         <label class="field">
           <span class="lbl">Teléfono</span>
-          <input type="tel" id="cfgTelefono" value="${escapeHtml(c.telefono)}" placeholder="300 000 0000">
+          <input type="tel" id="cfgTelefono" value="${escapeHtml(cfgValor('cfgTelefono', c.telefono))}" placeholder="300 000 0000">
         </label>
       </div>
       <label class="field">
         <span class="lbl">Email</span>
-        <input type="email" id="cfgEmail" value="${escapeHtml(c.email)}" placeholder="correo@empresa.com">
+        <input type="email" id="cfgEmail" value="${escapeHtml(cfgValor('cfgEmail', c.email))}" placeholder="correo@empresa.com">
       </label>
       <label class="field">
         <span class="lbl">¿Servicio de envío (mensajería)?</span>
         <div class="chipset" id="cfgServicioEnvio">
-          <button type="button" class="chip ${c.servicioEnvio==='SI'?'active':''}" data-val="SI">Sí</button>
-          <button type="button" class="chip ${c.servicioEnvio==='NO'?'active':''}" data-val="NO">No</button>
+          <button type="button" class="chip ${cfgChip('cfgServicioEnvio', c.servicioEnvio)==='SI'?'active':''}" data-val="SI">Sí</button>
+          <button type="button" class="chip ${cfgChip('cfgServicioEnvio', c.servicioEnvio)==='NO'?'active':''}" data-val="NO">No</button>
         </div>
       </label>
       <label class="field">
         <span class="lbl">¿La obra trabaja los sábados? (para recoger cilindros)</span>
         <div class="chipset" id="cfgSabado">
-          <button type="button" class="chip ${c.trabajaSabado?'active':''}" data-val="SI">Sí</button>
-          <button type="button" class="chip ${!c.trabajaSabado?'active':''}" data-val="NO">No</button>
+          <button type="button" class="chip ${cfgChip('cfgSabado', c.trabajaSabado?'SI':'NO')==='SI'?'active':''}" data-val="SI">Sí</button>
+          <button type="button" class="chip ${cfgChip('cfgSabado', c.trabajaSabado?'SI':'NO')==='NO'?'active':''}" data-val="NO">No</button>
         </div>
       </label>
       <label class="field">
         <span class="lbl">Observaciones de la solicitud (opcional)</span>
-        <textarea id="cfgObs" placeholder="Aplica a toda la solicitud">${escapeHtml(c.observacionesSolicitud)}</textarea>
+        <textarea id="cfgObs" placeholder="Aplica a toda la solicitud">${escapeHtml(cfgValor('cfgObs', c.observacionesSolicitud))}</textarea>
       </label>
       <button class="btn btn-primary btn-block" id="btnSaveConfig">Guardar configuración</button>
 
       <div class="divider"></div>
-      <div class="lbl" style="margin-bottom:7px;">Sincronización con Google Sheets</div>
-      <p class="card-hint">Pega aquí la URL del Web App de Apps Script (ver instrucciones que te di aparte). Así los datos quedan en la nube y puedes consolidar entre días o dispositivos.</p>
+      <div class="lbl" style="margin-bottom:7px;">Acceso a la app</div>
+      <div class="card-hint" style="margin-top:0;">🔑 Entraste como <b>${escapeHtml(licencia.usuario || '—')}</b>: las solicitudes salen "Solicita ${escapeHtml(usuarioActual() || '—')}".</div>
+      <div class="btn-row" style="margin-bottom:6px;"><button type="button" class="btn btn-outline btn-sm" id="btnCambiarUsuario">Cambiar de usuario</button></div>
+
+      <div class="divider"></div>
+      <div class="lbl" style="margin-bottom:7px;">Obra conectada (Google Sheets)</div>
+      <p class="card-hint">Para trabajar con el Sheet de otra obra, pega la URL del Web App de su Apps Script y la clave que te dio quien administra ese Sheet. Al cambiar de obra, las muestras guardadas en este celular se quitan de aquí (siguen en el Sheet anterior), para no mezclar obras.</p>
       <label class="field">
         <span class="lbl">URL del Web App</span>
-        <input type="text" id="cfgSheetUrl" value="${escapeHtml(c.sheetUrl)}" placeholder="https://script.google.com/macros/s/.../exec">
+        <input type="text" id="cfgSheetUrl" value="${escapeHtml(cfgValor('cfgSheetUrl', c.sheetUrl))}" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
       </label>
       <label class="field">
-        <span class="lbl">Clave de acceso (cada persona tiene la suya; se guarda solo en este celular)</span>
-        <input type="text" id="cfgClave" value="${escapeHtml(acceso.clave)}" placeholder="Pídesela a quien administra la app" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <span class="lbl">Clave de esa obra (se guarda solo en este celular)</span>
+        <div class="ver-clave">
+          <input type="password" id="cfgClave" value="${escapeHtml(cfgValor('cfgClave', acceso.clave))}" placeholder="${esSheetAdministrador() ? 'Vacía: usa tu clave de acceso' : 'Clave del Sheet de esa obra'}" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button type="button" class="btn btn-outline btn-sm" id="btnVerClave" aria-label="Mostrar u ocultar la clave">👁</button>
+        </div>
       </label>
-      ${acceso.usuario ? `<div class="card-hint" style="margin-top:0;">👤 Conectado como <b>${escapeHtml(acceso.usuario)}</b>: las solicitudes salen "Solicita ${escapeHtml(acceso.usuario)}".</div>` : ''}
+      ${state.config.sheetUrl && acceso.rechazada ? `<div class="card-hint" style="margin-top:0;color:var(--red);font-weight:700;">⚠ El Sheet rechazó la clave de la obra. Escribe la clave correcta y guarda.</div>` : ''}
+      ${state.config.sheetUrl && acceso.usuario && acceso.usuario !== licencia.usuario ? `<div class="card-hint" style="margin-top:0;">👤 En esta obra figuras como <b>${escapeHtml(acceso.usuario)}</b>.</div>` : ''}
       ${syncStatusLine()}
       <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-primary btn-sm" id="btnConectarObra">💾 Guardar y conectar</button>
         <button class="btn btn-outline btn-sm" id="btnSyncNow">🔄 Sincronizar ahora</button>
       </div>
     </div>
@@ -1999,7 +2077,7 @@ async function uploadFotoRemision(dataUrl, fileName){
   const commaIdx = dataUrl.indexOf(',');
   const mimeType = dataUrl.slice(5, commaIdx).split(';')[0] || 'image/jpeg';
   const base64 = dataUrl.slice(commaIdx+1);
-  const payload = { action:'uploadPhoto', clave: acceso.clave, fileData: base64, fileName: fileName || ('remision_'+Date.now()+'.jpg'), mimeType };
+  const payload = { action:'uploadPhoto', clave: claveObra(), fileData: base64, fileName: fileName || ('remision_'+Date.now()+'.jpg'), mimeType };
   let data, lastErr;
   try{
     data = await postViaHiddenForm(url, payload, 40000);
@@ -2373,12 +2451,12 @@ async function syncPull(){
   }
   try{
     if(!data || data.ok===false) throw new Error((data && data.error) || (lastErr && lastErr.message) || 'respuesta inválida');
-    if(data.usuario !== undefined && data.usuario !== acceso.usuario){ acceso.usuario = data.usuario || ''; }
+    if(state.config.sheetUrl !== url) return; // se cambió de obra mientras se descargaba: no mezclar
+    acceso.usuario = data.usuario ? String(data.usuario) : ''; // script sin claves: se usa el nombre de la licencia
     acceso.rechazada = false;
-    acceso.sinClaveOk = data.usuario === undefined; // script anterior, sin claves
     guardarAcceso();
-    if(verificandoClave && acceso.usuario) showToast(`Bienvenido, ${acceso.usuario}.`);
-    verificandoClave = false; mensajeClave = '';
+    if(verificandoObra) showToast(`Conectado a la obra${acceso.usuario ? ' como ' + acceso.usuario : ''}.`);
+    verificandoObra = false;
     if(Array.isArray(data.resistencias)){ // las escribe el Gestor (Trazabilidad); aquí solo se leen
       state.resistencias = data.resistencias;
       persist('resistencias');
@@ -2403,11 +2481,9 @@ async function syncPull(){
     console.error('syncPull error', err);
     if(/clave/i.test(err.message||'')){
       acceso.usuario = ''; acceso.rechazada = true; guardarAcceso();
-      mensajeClave = verificandoClave ? 'Clave no válida. Revisa mayúsculas, minúsculas y símbolos.' : '';
-    }else if(verificandoClave){
-      mensajeClave = 'No hay conexión para verificar la clave. Revisa la señal e intenta de nuevo.';
+      if(verificandoObra) showToast('El Sheet de la obra rechazó la clave. Revísala en Configuración.');
     }
-    verificandoClave = false;
+    verificandoObra = false;
     setSyncStatus('error', describeSyncError(err));
     render();
   }
@@ -2429,7 +2505,7 @@ async function syncPush(silent){
   if(!url) return;
   if(!silent){ setSyncStatus('syncing'); render(); }
   const payload = {
-    clave: acceso.clave,
+    clave: claveObra(),
     config: Object.fromEntries(SYNC_CONFIG_KEYS.map(k=>[k, state.config[k]])),
     muestras: state.muestras
   };
@@ -2447,12 +2523,62 @@ async function syncPush(silent){
     setSyncStatus('ok');
   }catch(err){
     console.error('syncPush error', err);
-    if(/clave/i.test(err.message||'')){ acceso.usuario = ''; acceso.rechazada = true; guardarAcceso(); actualizarOverlayClave(); }
+    if(/clave/i.test(err.message||'')){ acceso.usuario = ''; acceso.rechazada = true; guardarAcceso(); if(silent) render(); }
     setSyncStatus('error', describeSyncError(err));
   }
   if(!silent) render();
 }
 
+
+/* Guarda Configuración. Si se conecta OTRO Sheet (otra obra), primero se quitan
+   de este celular los datos de la obra anterior para no subirlos al nuevo. */
+async function guardarConfiguracion(){
+  const v = id => (document.getElementById(id)?.value ?? '').trim();
+  const prevUrl = state.config.sheetUrl;
+  const nuevaUrl = v('cfgSheetUrl');
+  const claveNueva = v('cfgClave');
+  if(nuevaUrl && !/^https:\/\/script\.google(usercontent)?\.com\//i.test(nuevaUrl)){
+    showToast('La URL debe ser la del Web App de Apps Script (https://script.google.com/…/exec).'); return;
+  }
+  const cambiaObra = !!prevUrl && nuevaUrl !== prevUrl;
+  if(cambiaObra){
+    const activas = state.muestras.filter(m=>!m.eliminado && !m.archivado).length;
+    const fotos = Object.keys(fotoPendientes).length;
+    const msg = nuevaUrl
+      ? `Vas a conectar este celular a otro Sheet (otra obra).\n\nPara no mezclar obras, se quitarán de este celular las muestras, el historial y los resultados de la obra anterior${activas ? ` (hay ${activas} muestra(s) sin enviar)` : ''}${fotos ? ` y ${fotos} foto(s) que aún no se suben` : ''}. Lo ya sincronizado sigue en el Sheet anterior.\n\n¿Continuar?`
+      : `Vas a desconectar este celular del Sheet.\n\nSe quitarán de este celular los datos de esa obra (siguen en su Sheet). ¿Continuar?`;
+    if(!confirm(msg)) return;
+    state.muestras = []; state.historial = []; state.resistencias = [];
+    persist('muestras'); persist('historial'); persist('resistencias');
+    for(const id of Object.keys(fotoPendientes)) await quitarFotoPendiente(id);
+    draft = blankMuestra(); editingId = null;
+    state.sync = { lastSyncAt: 0, pendingCount: 0, status: 'idle', lastError: '' }; persist('sync');
+    ['codigoObra','cfgCodigoObra','email','cfgEmail','telefono','cfgTelefono','contacto','cfgContacto','observacionesSolicitud','cfgObs']
+      .forEach((k,i,arr)=>{ if(i%2===0 && !Object.prototype.hasOwnProperty.call(cfgBorrador, arr[i+1])) state.config[k] = ''; });
+  }
+  const tomar = (id, k) => Object.prototype.hasOwnProperty.call(cfgBorrador, id) || !cambiaObra ? v(id) : state.config[k];
+  state.config = {
+    ...state.config,
+    codigoObra: tomar('cfgCodigoObra','codigoObra'),
+    servicioEnvio: document.querySelector('#cfgServicioEnvio .chip.active')?.dataset.val || 'SI',
+    trabajaSabado: document.querySelector('#cfgSabado .chip.active')?.dataset.val === 'SI',
+    email: tomar('cfgEmail','email'),
+    telefono: tomar('cfgTelefono','telefono'),
+    contacto: tomar('cfgContacto','contacto'),
+    observacionesSolicitud: tomar('cfgObs','observacionesSolicitud'),
+    sheetUrl: nuevaUrl
+  };
+  const cambioClave = claveNueva !== acceso.clave;
+  if(cambioClave || cambiaObra){ acceso = { clave: claveNueva, usuario: '', rechazada: false }; guardarAcceso(); }
+  cfgBorrador = {};
+  persist('config');
+  showToast('Configuración guardada.');
+  render();
+  const d = document.getElementById('cfgDetails'); if(d) d.open = true;
+  if(state.config.sheetUrl && (state.config.sheetUrl!==prevUrl || cambioClave)){ verificandoObra = true; syncPull(); }
+  else { syncPush(); }
+}
+let verificandoObra = false;
 
 function bindEvents(){
   const app = document.getElementById('app');
@@ -2463,7 +2589,7 @@ function bindEvents(){
     cfgServicio.querySelectorAll('.chip').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         cfgServicio.querySelectorAll('.chip').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
+        btn.classList.add('active'); cfgBorrador.cfgServicioEnvio = btn.dataset.val;
       });
     });
   }
@@ -2472,33 +2598,31 @@ function bindEvents(){
     cfgSabado.querySelectorAll('.chip').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         cfgSabado.querySelectorAll('.chip').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
+        btn.classList.add('active'); cfgBorrador.cfgSabado = btn.dataset.val;
       });
     });
   }
   const btnSaveConfig = document.getElementById('btnSaveConfig');
   if(btnSaveConfig){
-    btnSaveConfig.addEventListener('click', ()=>{
-      const prevUrl = state.config.sheetUrl;
-      state.config = {
-        codigoObra: document.getElementById('cfgCodigoObra').value.trim(),
-        servicioEnvio: cfgServicio.querySelector('.chip.active')?.dataset.val || 'SI',
-        trabajaSabado: document.querySelector('#cfgSabado .chip.active')?.dataset.val === 'SI',
-        email: document.getElementById('cfgEmail').value.trim(),
-        telefono: document.getElementById('cfgTelefono').value.trim(),
-        contacto: document.getElementById('cfgContacto').value.trim(),
-        observacionesSolicitud: document.getElementById('cfgObs').value.trim(),
-        sheetUrl: document.getElementById('cfgSheetUrl').value.trim()
-      };
-      const claveNueva = document.getElementById('cfgClave').value.trim();
-      const cambioClave = claveNueva !== acceso.clave;
-      if(cambioClave){ acceso = { clave: claveNueva, usuario: '', rechazada: false }; guardarAcceso(); verificandoClave = !!claveNueva; }
-      persist('config');
-      showToast('Configuración guardada.');
-      render();
-      const d = document.getElementById('cfgDetails'); if(d) d.open = true;
-      if(state.config.sheetUrl && (state.config.sheetUrl!==prevUrl || cambioClave)){ syncPull(); }
-      else { syncPush(); }
+    btnSaveConfig.addEventListener('click', guardarConfiguracion);
+  }
+  const btnConectarObra = document.getElementById('btnConectarObra');
+  if(btnConectarObra) btnConectarObra.addEventListener('click', guardarConfiguracion);
+  const btnVerClave = document.getElementById('btnVerClave');
+  if(btnVerClave){
+    btnVerClave.addEventListener('click', ()=>{
+      const i = document.getElementById('cfgClave');
+      const ver = i.type === 'password'; i.type = ver ? 'text' : 'password';
+      btnVerClave.textContent = ver ? '🙈' : '👁';
+    });
+  }
+  const btnCambiarUsuario = document.getElementById('btnCambiarUsuario');
+  if(btnCambiarUsuario){
+    btnCambiarUsuario.addEventListener('click', ()=>{
+      if(!confirm('¿Cambiar la persona que usa este celular? Se pedirá la clave de acceso de la nueva persona.')) return;
+      licencia.ok = false; licencia.rechazada = false; guardarLicencia();
+      mensajeClave = ''; actualizarOverlayClave();
+      const i = document.getElementById('coInput'); if(i){ i.value = ''; i.focus(); }
     });
   }
   const btnSyncNow = document.getElementById('btnSyncNow');
@@ -2681,7 +2805,7 @@ function bindEvents(){
         if(idx>-1) state.muestras[idx] = muestra;
         showToast('Muestra actualizada.');
       }else{
-        muestra.registradoPor = acceso.usuario || '';   // el servidor lo confirma con la clave
+        muestra.registradoPor = usuarioActual();   // el servidor lo confirma con la clave
         state.muestras.push(muestra);
         showToast('Muestra agregada.');
       }
@@ -2729,7 +2853,7 @@ function bindEvents(){
   }
   app.querySelectorAll('[data-descargar-fecha]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      if(!puedeSolicitar()){ showToast('Para generar la solicitud, este celular necesita una clave válida (identifica quién solicita).'); return; }
+      if(!puedeSolicitar()){ showToast(acceso.rechazada ? 'El Sheet de la obra rechazó la clave: corrígela en Configuración para generar la solicitud.' : 'Para generar la solicitud, este celular necesita una clave válida (identifica quién solicita).'); return; }
       const fecha = btn.dataset.descargarFecha;
       const items = itemsParaFecha(fecha);
       if(!items.length) return;
@@ -2748,7 +2872,7 @@ function bindEvents(){
   });
   app.querySelectorAll('[data-copiar-fecha]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      if(!puedeSolicitar()){ showToast('Para generar la solicitud, este celular necesita una clave válida (identifica quién solicita).'); return; }
+      if(!puedeSolicitar()){ showToast(acceso.rechazada ? 'El Sheet de la obra rechazó la clave: corrígela en Configuración para generar la solicitud.' : 'Para generar la solicitud, este celular necesita una clave válida (identifica quién solicita).'); return; }
       const items = itemsParaFecha(btn.dataset.copiarFecha);
       if(!items.length) return;
       copyTSVToClipboard(buildExportRows(items));
@@ -2764,7 +2888,7 @@ function bindEvents(){
       const hoy = todayISO();
       const ids = new Set(items.map(m=>m.id));
       state.muestras.forEach(m=>{
-        if(ids.has(m.id)){ m.archivado = true; m.loteId = loteId; m.fechaExportLote = hoy; m.updatedAt = Date.now(); m.enviadoPor = acceso.usuario || ''; }
+        if(ids.has(m.id)){ m.archivado = true; m.loteId = loteId; m.fechaExportLote = hoy; m.updatedAt = Date.now(); m.enviadoPor = usuarioActual(); }
       });
       persist('muestras');
       showToast('Enviada. ¡Lista para la siguiente!');
@@ -2802,7 +2926,7 @@ function bindEvents(){
   /* ----- Historial: reexportar ----- */
   app.querySelectorAll('[data-reexport]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      if(!puedeSolicitar()){ showToast('Para generar la solicitud, este celular necesita una clave válida (identifica quién solicita).'); return; }
+      if(!puedeSolicitar()){ showToast(acceso.rechazada ? 'El Sheet de la obra rechazó la clave: corrígela en Configuración para generar la solicitud.' : 'Para generar la solicitud, este celular necesita una clave válida (identifica quién solicita).'); return; }
       const h = getLotesHistorial().find(x=>x.id===btn.dataset.reexport);
       if(!h) return;
       try{
@@ -2833,6 +2957,11 @@ render = function(){
   if(openState.cat && document.getElementById('catDetails')) document.getElementById('catDetails').open = true;
   if(openState.hist && document.getElementById('histDetails')) document.getElementById('histDetails').open = true;
   if(openState.busq && document.getElementById('busqDetails')) document.getElementById('busqDetails').open = true;
+  if(state.config.sheetUrl && acceso.rechazada){
+    const av = document.createElement('div'); av.className = 'aviso-obra';
+    av.textContent = '⚠ El Sheet de la obra rechazó la clave: no se está sincronizando. Corrígela en Configuración > Obra conectada.';
+    document.getElementById('app').prepend(av);
+  }
   actualizarOverlayClave();
 };
 
@@ -2867,6 +2996,7 @@ document.getElementById('app').addEventListener('click', async (e)=>{
   }
 });
 document.getElementById('app').addEventListener('input', (e)=>{
+  if(/^cfg/.test(e.target.id||'') && e.target.closest('#cfgDetails')){ cfgBorrador[e.target.id] = e.target.value; return; }
   if(e.target.id !== 'busqInput') return;
   busqQuery = e.target.value;
   const box = document.getElementById('busqResultados');
@@ -2907,7 +3037,8 @@ setInterval(()=>{ if(Object.keys(fotoPendientes).length && navigator.onLine !== 
 unificarDuplicadosSgs();
 render();
 cargarFotosPendientes();
-if(state.config.sheetUrl){ syncPull(); }
+if(state.config.sheetUrl && licencia.ok){ syncPull(); }
+revisarLicencia();
 </script>
 </body>
 </html>
