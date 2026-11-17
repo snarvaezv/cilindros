@@ -2945,7 +2945,33 @@ function bindEvents(){
    RENDER con persistencia de <details> abiertos
    ========================================================= */
 const _originalRender = render;
+/* Si la persona está escribiendo en un campo y el redibujo NO viene de algo que
+   ella hizo (sincronización, fotos, reloj…), se aplaza hasta que salga del
+   campo. Redibujar reemplaza el campo: se perdía el cursor, lo escrito, y la
+   siguiente tecla (p. ej. el espacio) desplazaba la página. */
+const EVENTOS_DE_USUARIO = new Set(['click','input','change','keydown','keyup','submit','mousedown','mouseup','pointerdown','pointerup','touchstart','touchend']);
+let renderAplazado = false;
+function escribiendoEnCampo(){
+  const a = document.activeElement;
+  return !!a && !!a.closest && !!a.closest('#app') &&
+    (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(button|checkbox|radio|file|submit|reset|range|color)$/i.test(a.type||'')));
+}
+document.addEventListener('focusout', ()=>{
+  if(!renderAplazado) return;
+  setTimeout(()=>{ // deja terminar el toque (p. ej. en un botón) antes de redibujar
+    if(!renderAplazado || escribiendoEnCampo()) return;
+    try{ syncDraftFromDOM(); }catch(e){}
+    render();
+  }, 350);
+});
 render = function(){
+  const ev = window.event;
+  if(escribiendoEnCampo() && !(ev && EVENTOS_DE_USUARIO.has(ev.type))){
+    renderAplazado = true;
+    actualizarOverlayClave();
+    return;
+  }
+  renderAplazado = false;
   const openState = {
     cfg: document.getElementById('cfgDetails')?.open,
     cat: document.getElementById('catDetails')?.open,
