@@ -1,5 +1,5 @@
 /**
- * Backend de Google Sheets para "Registro de Cilindros" (SGS) — versión 2.
+ * Backend de Google Sheets para "Registro de Cilindros" (SGS) — versión 4.
  *
  * QUÉ CAMBIA FRENTE A LA VERSIÓN 1
  *  - Clave por persona: solo quien tenga una clave válida puede leer o
@@ -27,13 +27,27 @@
  *    recibe las dos juntas, así que no cambia nada para ella. Al primer
  *    guardado con esta versión, las del export se pasan solas de pestaña.
  *
+ * VERSIÓN 4 (Gestor de Supervisión: "registro de obra")
+ *  - Lectura nueva para el Gestor (action "muestrasObra", por POST, con la
+ *    clave en el cuerpo y no en la dirección): devuelve solo las muestras
+ *    registradas en la app (pestaña "Muestras"), sin las eliminadas, sin el
+ *    histórico de SGS y sin las resistencias. Así el Gestor ve una muestra
+ *    desde el día del vaciado, antes de que SGS la recoja.
+ *  - Solo lectura: no cambia nada del Sheet. La app no la usa.
+ *  - Este MISMO archivo es el que se entrega a las otras obras (cada una
+ *    pone sus claves en su copia). La versión 1 ("Codigo_AppsScript.gs",
+ *    sin claves) ya no se debe usar: cualquiera con la URL podía leer y
+ *    borrar las muestras.
+ *
  * ⚠ LAS CLAVES SE ESCRIBEN SOLO AQUÍ, EN TU APPS SCRIPT.
  *   El repositorio de la app es público: nunca pongas las claves reales en
  *   GitHub. Este archivo del repositorio trae claves de ejemplo.
  *
  * INSTALACIÓN / ACTUALIZACIÓN
  * 1. En tu Sheet: "Extensiones" > "Apps Script".
- * 2. Borra todo el contenido de Code.gs y pega TODO este archivo.
+ * 2. Si ya tenías claves: copia antes tus bloques CLAVES y LICENCIAS (a un
+ *    Bloc de notas) para volver a ponerlos en el paso 3.
+ *    Borra todo el contenido de Code.gs y pega TODO este archivo.
  * 3. Cambia las claves de ejemplo de CLAVES (abajo) por claves tuyas
  *    (inventadas, difíciles de adivinar) y el nombre de cada persona.
  * 4. Guarda (ícono de disco o Ctrl+S).
@@ -68,6 +82,14 @@ const SHEET_HISTORICO = 'Historico SGS';
 const LOTE_HISTORICO = 'historico-sgs'; // loteId que pone la app a las muestras importadas del export de SGS
 const SHEET_CONFIG = 'Config';
 const SHEET_RESISTENCIAS = 'Resistencias';
+const VERSION_SCRIPT = 4;
+
+// Lo que el Gestor necesita de cada muestra registrada en la app (versión 4).
+const COLS_GESTOR = [
+  'id','numeroMuestra','fechaFundida','horaToma','tipoMaterial','concretera','resistenciaNominalMpa','localizacion',
+  'asentamientoMm','dia1','dia3','dia7','dia14','dia28','dia56','testigo28','testigo56','otroDia','cantidadOtroDia',
+  'archivado','fechaRecoleccion','fechaRecoleccionLote','fechaEnviado','enviadoPor','registradoPor','updatedAt'
+];
 
 // Una fila por muestra y edad de ensayo (la escribe el Gestor de Supervisión).
 const RES_COLS = [
@@ -104,7 +126,7 @@ function doGet(e) {
     }
     const usuario = usuarioDe_(e && e.parameter && e.parameter.clave);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    result = { ok: true, usuario: usuario, config: readConfig_(ss), muestras: readMuestras_(ss),
+    result = { ok: true, usuario: usuario, version: VERSION_SCRIPT, config: readConfig_(ss), muestras: readMuestras_(ss),
                resistencias: ss.getSheetByName(SHEET_RESISTENCIAS) ? readRows_(ss, SHEET_RESISTENCIAS) : [] };
   } catch (err) {
     result = { ok: false, error: String(err.message || err) };
@@ -122,6 +144,11 @@ function doPost(e) {
     const usuario = usuarioDe_(body.clave);
     if (body.action === 'uploadPhoto') {
       result = { ok: true, url: uploadPhoto_(body.fileData, body.fileName, body.mimeType) };
+    } else if (body.action === 'muestrasObra') {
+      // Versión 4: solo lectura, para el Gestor de Supervisión.
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      result = { ok: true, usuario: usuario, version: VERSION_SCRIPT,
+                 obra: String(readConfig_(ss).codigoObra || ''), muestras: muestrasParaGestor_(ss) };
     } else if (body.action === 'resistencias') {
       const lock = LockService.getScriptLock();
       lock.waitLock(20000);
@@ -223,6 +250,19 @@ function escribirMuestras_(sh, ids, porId) {
   const rango = sh.getRange(1, 1, data.length, MUESTRA_COLS.length);
   rango.setNumberFormat('@'); // texto: que Sheets no convierta fechas ni horas
   rango.setValues(data);
+}
+
+/* ---------- registro de obra (para el Gestor de Supervisión) ---------- */
+
+/* Solo las muestras registradas en la app (no el histórico de SGS), sin las eliminadas. */
+function muestrasParaGestor_(ss) {
+  return readRows_(ss, SHEET_MUESTRAS)
+    .filter(function (m) { return !esVerdadero_(m.eliminado) && m.loteId !== LOTE_HISTORICO; })
+    .map(function (m) {
+      const o = {};
+      COLS_GESTOR.forEach(function (c) { o[c] = (m[c] === undefined || m[c] === null) ? '' : m[c]; });
+      return o;
+    });
 }
 
 /* ---------- resistencias (desde el Gestor de Supervisión) ---------- */
